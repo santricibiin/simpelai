@@ -7,17 +7,16 @@ export const navGroups: NavGroup[] = [
     items: [
       { href: "/admin", label: "Overview", icon: "LayoutDashboard" },
       { href: "/admin/usage", label: "Usage & Token", icon: "Activity" },
-      { href: "/admin/latency", label: "Latency Grid", icon: "Gauge" },
-      { href: "/admin/logs", label: "Request Logs", icon: "ScrollText", badge: "live" },
+      { href: "/admin/logs", label: "Request Logs", icon: "ScrollText" },
     ],
   },
   {
     title: "Kelola",
     items: [
+      { href: "/admin/routing", label: "Routing", icon: "Boxes" },
       { href: "/admin/keys", label: "API Keys", icon: "KeyRound" },
-      { href: "/admin/models", label: "Model Router", icon: "Boxes" },
       { href: "/admin/users", label: "Users & Role", icon: "Users" },
-      { href: "/admin/billing", label: "Billing", icon: "Coins", badge: "3" },
+      { href: "/admin/billing", label: "Billing", icon: "Coins" },
     ],
   },
   {

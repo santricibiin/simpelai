@@ -6,8 +6,9 @@ use sqlx::MySqlPool;
 
 pub async fn connect(url: &str) -> anyhow::Result<MySqlPool> {
     MySqlPoolOptions::new()
-        .max_connections(10)
-        .acquire_timeout(Duration::from_secs(5))
+        .max_connections(64)
+        .acquire_timeout(Duration::from_secs(8))
+        .min_connections(4)
         .connect(url)
         .await
         .context("gagal konek MySQL")

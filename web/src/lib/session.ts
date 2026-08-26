@@ -1,5 +1,14 @@
 import { cookies } from "next/headers";
-import { API_URL, SESSION_COOKIE, type AdminStats, type Profile, type Settings } from "./api";
+import {
+  API_URL,
+  SESSION_COOKIE,
+  type AdminStats,
+  type PlatformKey,
+  type LogsResponse,
+  type Profile,
+  type Provider,
+  type Settings,
+} from "./api";
 
 const FALLBACK_SETTINGS: Settings = { site_name: "NeuroForge", site_tagline: "LLM API Token Platform" };
 
@@ -26,3 +35,10 @@ export const getProfile = () => authFetch("/api/auth/me") as Promise<{ status: n
 
 export const getAdminStats = () =>
   authFetch("/api/admin/stats") as Promise<{ status: number; data: AdminStats | null }>;
+
+export const getProviders = () => authFetch("/api/admin/providers") as Promise<{ status: number; data: Provider[] | null }>;
+
+export const getPlatformKeys = () => authFetch("/api/keys") as Promise<{ status: number; data: PlatformKey[] | null }>;
+
+export const getLogs = (limit = 100) =>
+  authFetch(`/api/admin/logs?limit=${limit}`) as Promise<{ status: number; data: LogsResponse | null }>;

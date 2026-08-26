@@ -20,6 +20,7 @@ pub struct Claims {
     pub exp: i64,
 }
 
+#[allow(dead_code)]
 pub fn hash_password(plain: &str) -> anyhow::Result<String> {
     let salt = SaltString::generate(&mut OsRng);
     Argon2::default()
@@ -51,7 +52,7 @@ fn decode_token(secret: &str, token: &str) -> Result<Claims, ApiError> {
 }
 
 pub struct AuthUser(pub Claims);
-pub struct AdminUser(pub Claims);
+pub struct AdminUser(#[allow(dead_code)] pub Claims);
 
 #[async_trait]
 impl FromRequestParts<AppState> for AuthUser {

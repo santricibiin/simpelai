@@ -17,6 +17,56 @@ export type AdminStats = {
 
 export type Settings = { site_name: string; site_tagline: string };
 
+export type ProviderKey = { id: number; provider_id: number; label: string; key_hint: string; enabled: number };
+
+export type ProviderModel = { id: number; provider_id: number; model: string; enabled: number };
+
+export type Provider = {
+  id: number;
+  name: string;
+  slug: string;
+  base_url: string;
+  enabled: number;
+  priority: number;
+  models: string[] | null;
+  model_list: ProviderModel[];
+  last_error: string | null;
+  keys: ProviderKey[];
+};
+
+export type PlatformKey = {
+  id: number;
+  name: string;
+  key_prefix: string;
+  revoked: number;
+  rpm_limit: number;
+  tokens_used: number;
+  tokens_in: number;
+  tokens_out: number;
+  token_quota: number | null;
+  requests: number;
+  avg_latency_ms: number;
+};
+
+export type LogRow = {
+  id: number;
+  created_at: string;
+  model: string;
+  prompt_tokens: number;
+  completion_tokens: number;
+  latency_ms: number;
+  status_code: number;
+  key_name: string | null;
+  key_prefix: string | null;
+  user_email: string | null;
+  provider_name: string | null;
+};
+
+export type LogsResponse = {
+  stats: { total: number; failed: number; tokens: number; p50_ms: number; p95_ms: number; avg_ms: number };
+  rows: LogRow[];
+};
+
 export const API_URL = process.env.API_URL ?? "http://localhost:8080";
 export const SESSION_COOKIE = "nf_session";
 

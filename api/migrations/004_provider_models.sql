@@ -1,0 +1,10 @@
+CREATE TABLE IF NOT EXISTS provider_models (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  provider_id BIGINT UNSIGNED NOT NULL,
+  model VARCHAR(128) NOT NULL,
+  enabled TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_provider_model (provider_id, model),
+  FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+  INDEX idx_lookup (model, enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
