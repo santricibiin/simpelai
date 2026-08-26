@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { AreaChart, BarChart, DonutChart } from "@/components/admin/Charts";
-import { ChartPanel, KpiCard, UserRow } from "@/components/admin/Motion";
+import { ChartPanel, KpiCard, UserRow } from "@/components/admin/Panels";
 import { compact, usd } from "@/lib/api";
 import { getAdminStats } from "@/lib/session";
 
-export const metadata: Metadata = { title: "Dashboard Admin — NeuroForge" };
+export const metadata: Metadata = { title: "Dashboard Admin" };
 export const dynamic = "force-dynamic";
 
 export default async function AdminPage() {
@@ -22,9 +22,9 @@ export default async function AdminPage() {
   const short = (d: string) => d.slice(5);
 
   const cards = [
-    { icon: "Zap", label: "Token 30 hari", value: compact(kpis.tokens_30d), raw: { to: kpis.tokens_30d, kind: "compact" as const } },
-    { icon: "Activity", label: "Request 30 hari", value: compact(kpis.requests_30d), raw: { to: kpis.requests_30d, kind: "compact" as const } },
-    { icon: "Coins", label: "Revenue 30 hari", value: usd(kpis.revenue_cents_30d), raw: { to: kpis.revenue_cents_30d, kind: "usd" as const } },
+    { icon: "Zap", label: "Token 30 hari", value: compact(kpis.tokens_30d) },
+    { icon: "Activity", label: "Request 30 hari", value: compact(kpis.requests_30d) },
+    { icon: "Coins", label: "Revenue 30 hari", value: usd(kpis.revenue_cents_30d) },
     { icon: "Users", label: "User aktif", value: `${kpis.active_users}/${kpis.total_users}` },
   ];
 
@@ -38,8 +38,8 @@ export default async function AdminPage() {
       </div>
 
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {cards.map((c, i) => (
-          <KpiCard key={c.label} icon={c.icon} label={c.label} value={c.value} raw={c.raw} delay={i * 0.08} />
+        {cards.map((c) => (
+          <KpiCard key={c.label} icon={c.icon} label={c.label} value={c.value} />
         ))}
       </ul>
 
@@ -48,20 +48,18 @@ export default async function AdminPage() {
           <AreaChart label="Token per hari" data={series.map((p) => ({ label: short(p.day), value: p.tokens }))} />
         </ChartPanel>
 
-        <ChartPanel icon="PieChart" title="Share per model" delay={0.1}>
-          <div className="mt-2">
-            <DonutChart label="Share per model" data={by_model.map((m) => ({ label: m.model, value: m.tokens }))} />
-          </div>
+        <ChartPanel icon="PieChart" title="Share per model">
+          <DonutChart label="Share per model" data={by_model.map((m) => ({ label: m.model, value: m.tokens }))} />
         </ChartPanel>
 
-        <ChartPanel icon="BarChart3" title="Request per hari" className="lg:col-span-2" delay={0.05}>
+        <ChartPanel icon="BarChart3" title="Request per hari" className="lg:col-span-2">
           <BarChart label="Request per hari" data={series.map((p) => ({ label: short(p.day), value: p.requests }))} />
         </ChartPanel>
 
-        <ChartPanel icon="Users" title="User terbaru" delay={0.15}>
+        <ChartPanel icon="Users" title="User terbaru">
           <ul className="divide-y divide-slate-900/10 dark:divide-white/10">
-            {recent_users.map((u, i) => (
-              <UserRow key={u.id} name={u.name} email={u.email} role={u.role} index={i} />
+            {recent_users.map((u) => (
+              <UserRow key={u.id} name={u.name} email={u.email} role={u.role} />
             ))}
           </ul>
         </ChartPanel>

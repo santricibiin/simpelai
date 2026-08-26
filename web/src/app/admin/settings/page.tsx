@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { ChartPanel } from "@/components/admin/Motion";
+import { ChartPanel } from "@/components/admin/Panels";
 import SiteSettingsForm from "@/components/admin/SiteSettingsForm";
 import { getSettings } from "@/lib/session";
 

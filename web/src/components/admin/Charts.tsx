@@ -1,8 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
-import { compact } from "@/lib/api";
-
 const W = 600;
 const H = 220;
 const PAD = 8;
@@ -19,6 +14,9 @@ const scale = (pts: Pt[]) => {
   }));
 };
 
+const compact = (n: number) =>
+  new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 1 }).format(n);
+
 export function AreaChart({ data, label }: { data: Pt[]; label: string }) {
   if (!data.length) return <Empty label={label} />;
   const pts = scale(data);
@@ -26,53 +24,56 @@ export function AreaChart({ data, label }: { data: Pt[]; label: string }) {
   const area = `${line} L${pts[pts.length - 1].x.toFixed(1)},${H - PAD} L${pts[0].x.toFixed(1)},${H - PAD} Z`;
 
   return (
-    <figure className="min-w-0">
-      <figcaption className="sr-only">{label}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-48 w-full sm:h-60 xl:h-64" role="img" aria-label={label}>
-        <defs>
-          <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#d92626" stopOpacity="0.45" />
-            <stop offset="100%" stopColor="#8B0000" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-        {[0.25, 0.5, 0.75].map((f) => (
-          <line key={f} x1={PAD} x2={W - PAD} y1={H * f} y2={H * f} stroke="currentColor" strokeOpacity="0.08" vectorEffect="non-scaling-stroke" />
-        ))}
-        <motion.path
-          d={area}
-          fill="url(#areaFill)"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8 }}
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      className="h-48 w-full sm:h-56"
+      role="img"
+      aria-label={label}
+    >
+      <defs>
+        <linearGradient id="areaFill" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#d92626" stopOpacity="0.4" />
+          <stop offset="100%" stopColor="#8B0000" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {[0.25, 0.5, 0.75].map((f) => (
+        <line
+          key={f}
+          x1={PAD}
+          x2={W - PAD}
+          y1={H * f}
+          y2={H * f}
+          stroke="currentColor"
+          strokeOpacity="0.08"
+          vectorEffect="non-scaling-stroke"
         />
-        <motion.path
-          d={line}
-          fill="none"
+      ))}
+      <path d={area} fill="url(#areaFill)" />
+      <path
+        d={line}
+        fill="none"
+        stroke="#d92626"
+        strokeWidth="2"
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
+      {pts.map((p) => (
+        <line
+          key={p.label}
+          x1={p.x}
+          y1={p.y}
+          x2={p.x}
+          y2={p.y}
           stroke="#d92626"
-          strokeWidth="2"
+          strokeWidth="5"
           strokeLinecap="round"
           vectorEffect="non-scaling-stroke"
-          initial={{ pathLength: 0 }}
-          animate={{ pathLength: 1 }}
-          transition={{ duration: 1.2, ease: "easeOut" }}
-        />
-        {pts.map((p) => (
-          <line
-            key={p.label}
-            x1={p.x}
-            y1={p.y}
-            x2={p.x}
-            y2={p.y}
-            stroke="#d92626"
-            strokeWidth="5"
-            strokeLinecap="round"
-            vectorEffect="non-scaling-stroke"
-          >
-            <title>{`${p.label}: ${compact(p.value)}`}</title>
-          </line>
-        ))}
-      </svg>
-    </figure>
+        >
+          <title>{`${p.label}: ${compact(p.value)}`}</title>
+        </line>
+      ))}
+    </svg>
   );
 }
 
@@ -82,28 +83,30 @@ export function BarChart({ data, label }: { data: Pt[]; label: string }) {
   const bw = (W - PAD * 2) / data.length;
 
   return (
-    <figure className="min-w-0">
-      <figcaption className="sr-only">{label}</figcaption>
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="h-48 w-full sm:h-60 xl:h-64" role="img" aria-label={label}>
-        {data.map((d, i) => {
-          const h = (d.value / max) * (H - PAD * 2);
-          return (
-            <motion.rect
-              key={d.label}
-              x={PAD + i * bw + bw * 0.15}
-              width={bw * 0.7}
-              rx="2"
-              fill="#990000"
-              initial={{ height: 0, y: H - PAD }}
-              animate={{ height: h, y: H - PAD - h }}
-              transition={{ duration: 0.6, delay: i * 0.015, ease: "easeOut" }}
-            >
-              <title>{`${d.label}: ${compact(d.value)}`}</title>
-            </motion.rect>
-          );
-        })}
-      </svg>
-    </figure>
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      className="h-48 w-full sm:h-56"
+      role="img"
+      aria-label={label}
+    >
+      {data.map((d, i) => {
+        const h = (d.value / max) * (H - PAD * 2);
+        return (
+          <rect
+            key={d.label}
+            x={PAD + i * bw + bw * 0.15}
+            y={H - PAD - h}
+            width={bw * 0.7}
+            height={h}
+            rx="2"
+            fill="#990000"
+          >
+            <title>{`${d.label}: ${compact(d.value)}`}</title>
+          </rect>
+        );
+      })}
+    </svg>
   );
 }
 
@@ -116,16 +119,12 @@ export function DonutChart({ data, label }: { data: Pt[]; label: string }) {
   let acc = 0;
 
   return (
-    <figure className="flex min-w-0 flex-col items-center gap-6 sm:flex-row">
-      <figcaption className="sr-only">{label}</figcaption>
-      <svg viewBox="0 0 160 160" className="h-40 w-40 shrink-0 -rotate-90" role="img" aria-label={label}>
+    <div className="flex flex-col items-center gap-6 sm:flex-row">
+      <svg viewBox="0 0 160 160" className="h-36 w-36 shrink-0 -rotate-90" role="img" aria-label={label}>
         {data.map((d, i) => {
           const frac = d.value / total;
-          const dash = `${(frac * C).toFixed(2)} ${C.toFixed(2)}`;
-          const offset = -acc * C;
-          acc += frac;
-          return (
-            <motion.circle
+          const seg = (
+            <circle
               key={d.label}
               cx="80"
               cy="80"
@@ -133,14 +132,14 @@ export function DonutChart({ data, label }: { data: Pt[]; label: string }) {
               fill="none"
               stroke={shades[i % shades.length]}
               strokeWidth="20"
-              strokeDasharray={dash}
-              initial={{ strokeDashoffset: 0, opacity: 0 }}
-              animate={{ strokeDashoffset: offset, opacity: 1 }}
-              transition={{ duration: 0.9, delay: i * 0.1, ease: "easeOut" }}
+              strokeDasharray={`${(frac * C).toFixed(2)} ${C.toFixed(2)}`}
+              strokeDashoffset={(-acc * C).toFixed(2)}
             >
               <title>{`${d.label}: ${(frac * 100).toFixed(1)}%`}</title>
-            </motion.circle>
+            </circle>
           );
+          acc += frac;
+          return seg;
         })}
       </svg>
 
@@ -155,12 +154,10 @@ export function DonutChart({ data, label }: { data: Pt[]; label: string }) {
           </li>
         ))}
       </ul>
-    </figure>
+    </div>
   );
 }
 
 function Empty({ label }: { label: string }) {
-  return (
-    <p className="grid h-48 place-items-center font-mono text-xs text-slate-400">{label}: tidak ada data</p>
-  );
+  return <p className="grid h-48 place-items-center font-mono text-xs text-slate-400">{label}: tidak ada data</p>;
 }

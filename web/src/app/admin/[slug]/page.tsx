@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { navFlat } from "@/lib/nav";
-import { ChartPanel } from "@/components/admin/Motion";
+import { ChartPanel } from "@/components/admin/Panels";
 
 export const dynamic = "force-dynamic";
 

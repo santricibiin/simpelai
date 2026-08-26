@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "framer-motion";
 import { Check, Loader2, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -59,10 +58,9 @@ export default function SiteSettingsForm({ initial }: { initial: Settings }) {
         )}
       </div>
 
-      <motion.button
+      <button
         type="submit"
         disabled={state === "saving" || !dirty}
-        whileTap={{ scale: 0.97 }}
         className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-crimson px-5 py-3 text-sm font-semibold text-offwhite shadow-neon transition hover:bg-crimson-600 disabled:opacity-50"
       >
         {state === "saving" ? (
@@ -73,7 +71,7 @@ export default function SiteSettingsForm({ initial }: { initial: Settings }) {
           <Save className="h-4 w-4" />
         )}
         {state === "saved" ? "Tersimpan" : "Simpan"}
-      </motion.button>
+      </button>
     </form>
   );
 }
