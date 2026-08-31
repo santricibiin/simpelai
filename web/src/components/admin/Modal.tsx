@@ -39,15 +39,19 @@ export default function Modal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center p-0 sm:items-center sm:p-4">
-      <div onClick={onClose} className="absolute inset-0 bg-slateDeep-900/70" aria-hidden="true" />
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+      <div
+        onClick={onClose}
+        className="absolute inset-0"
+        aria-hidden="true"
+      />
 
       <div
         ref={panel}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className="relative w-full max-w-md rounded-t-2xl border border-slate-900/10 bg-offwhite p-5 shadow-2xl sm:rounded-2xl dark:border-white/10 dark:bg-slateDeep-800"
+        className="relative max-h-[88dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-slate-900/10 bg-offwhite p-5 shadow-2xl dark:border-white/10 dark:bg-slateDeep-800"
       >
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
@@ -75,7 +79,9 @@ export default function Modal({
 
         {children && <div className="mt-4">{children}</div>}
 
-        {footer && <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>}
+        {footer && (
+          <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">{footer}</div>
+        )}
       </div>
     </div>
   );

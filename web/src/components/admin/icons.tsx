@@ -15,6 +15,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Users,
+  Wallet,
   Webhook,
   type LucideIcon,
 } from "lucide-react";
@@ -28,6 +29,7 @@ export const icons: Record<string, LucideIcon> = {
   Boxes,
   Users,
   Coins,
+  Wallet,
   Webhook,
   ShieldCheck,
   SlidersHorizontal,

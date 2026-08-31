@@ -14,6 +14,7 @@ export const navGroups: NavGroup[] = [
     title: "Kelola",
     items: [
       { href: "/admin/routing", label: "Routing", icon: "Boxes" },
+      { href: "/admin/bandel", label: "Bandel", icon: "Wallet" },
       { href: "/admin/keys", label: "API Keys", icon: "KeyRound" },
       { href: "/admin/users", label: "Users & Role", icon: "Users" },
       { href: "/admin/billing", label: "Billing", icon: "Coins" },
