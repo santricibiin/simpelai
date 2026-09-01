@@ -1,5 +1,5 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { query, execute, pool } from "./db";
+import { getAppSetting, setAppSetting } from "./app-settings";
 import { timingSafeEqual } from "node:crypto";
 
 /* ---------- QRIS statis → dinamis (EMVCo TLV) ---------- */
@@ -68,11 +68,7 @@ export function verifyQrisCrc(qris: string): boolean {
   }
 }
 
-/* ---------- settings ---------- */
-
-const SETTINGS_FILE = "data/payment-settings.json";
-const ORDERS_FILE = "data/payment-orders.json";
-const EVENTS_FILE = "data/payment-events.json";
+/* ---------- settings (app_settings key=payment) ---------- */
 
 export type QrisProvider = "none" | "dana" | "neobank" | "gopay";
 
@@ -95,32 +91,27 @@ const DEFAULT_SETTINGS: PaymentSettings = {
 };
 
 export async function getPaymentSettings(): Promise<PaymentSettings> {
-  try {
-    const raw = JSON.parse(await fs.readFile(SETTINGS_FILE, "utf8")) as Partial<PaymentSettings>;
-    return {
-      qrisProvider: (["none", "dana", "neobank", "gopay"] as const).includes(raw.qrisProvider as QrisProvider)
-        ? (raw.qrisProvider as QrisProvider)
-        : DEFAULT_SETTINGS.qrisProvider,
-      qrisStatic: typeof raw.qrisStatic === "string" ? raw.qrisStatic.trim() : "",
-      uniqueCodeEnabled: typeof raw.uniqueCodeEnabled === "boolean" ? raw.uniqueCodeEnabled : DEFAULT_SETTINGS.uniqueCodeEnabled,
-      ttlMinutes:
-        typeof raw.ttlMinutes === "number" && raw.ttlMinutes >= 1 && raw.ttlMinutes <= 120
-          ? Math.round(raw.ttlMinutes)
-          : DEFAULT_SETTINGS.ttlMinutes,
-      forwarderSecret: typeof raw.forwarderSecret === "string" ? raw.forwarderSecret.trim() : "",
-      maxPendingOrders:
-        typeof raw.maxPendingOrders === "number" && raw.maxPendingOrders >= 1 && raw.maxPendingOrders <= 10
-          ? Math.round(raw.maxPendingOrders)
-          : DEFAULT_SETTINGS.maxPendingOrders,
-    };
-  } catch {
-    return DEFAULT_SETTINGS;
-  }
+  const raw = await getAppSetting<Partial<PaymentSettings>>("payment", {});
+  return {
+    qrisProvider: (["none", "dana", "neobank", "gopay"] as const).includes(raw.qrisProvider as QrisProvider)
+      ? (raw.qrisProvider as QrisProvider)
+      : DEFAULT_SETTINGS.qrisProvider,
+    qrisStatic: typeof raw.qrisStatic === "string" ? raw.qrisStatic.trim() : "",
+    uniqueCodeEnabled: typeof raw.uniqueCodeEnabled === "boolean" ? raw.uniqueCodeEnabled : DEFAULT_SETTINGS.uniqueCodeEnabled,
+    ttlMinutes:
+      typeof raw.ttlMinutes === "number" && raw.ttlMinutes >= 1 && raw.ttlMinutes <= 120
+        ? Math.round(raw.ttlMinutes)
+        : DEFAULT_SETTINGS.ttlMinutes,
+    forwarderSecret: typeof raw.forwarderSecret === "string" ? raw.forwarderSecret.trim() : "",
+    maxPendingOrders:
+      typeof raw.maxPendingOrders === "number" && raw.maxPendingOrders >= 1 && raw.maxPendingOrders <= 10
+        ? Math.round(raw.maxPendingOrders)
+        : DEFAULT_SETTINGS.maxPendingOrders,
+  };
 }
 
 export async function setPaymentSettings(s: PaymentSettings): Promise<void> {
-  await fs.mkdir(path.dirname(SETTINGS_FILE), { recursive: true });
-  await fs.writeFile(SETTINGS_FILE, JSON.stringify(s, null, 2) + "\n", { mode: 0o600 });
+  await setAppSetting("payment", s);
 }
 
 /* ---------- orders ---------- */
@@ -132,60 +123,139 @@ export type PaymentOrder = {
   status: OrderStatus;
   amount: number;
   uniqueCode: number;
-  productId: string;
+  productId: string | null;
   productName: string;
   tokens: number;
   validDays: number;
-  source: "bandel" | "gateway";
-  tierId?: string;
-  buyerToken: string;
-  qrisPayload: string;
+  source: "bandel" | "gateway" | "manual";
+  tierId?: string | null;
+  category?: string | null;
+  productCode?: string | null;
+  buyerToken: string | null;
+  qty: number;
+  qrisPayload: string | null;
+  tg?: {
+    userId: string | null;
+    chatId: string | null;
+    name: string | null;
+    username: string | null;
+    qrisMessageId: number | null;
+  } | null;
+  tgDelivered?: boolean;
+  eventId?: string | null;
+  delivered?: string | null;
   createdAt: string;
   expiresAt: string;
-  paidAt?: string;
-  delivered?: string;
-  eventId?: string;
+  paidAt?: string | null;
 };
 
-async function readOrders(): Promise<PaymentOrder[]> {
-  try {
-    const raw = JSON.parse(await fs.readFile(ORDERS_FILE, "utf8")) as unknown;
-    return Array.isArray(raw) ? (raw as PaymentOrder[]) : [];
-  } catch {
-    return [];
-  }
+interface OrderRow {
+  invoice: string;
+  status: OrderStatus;
+  amount: number;
+  unique_code: number;
+  product_id: string | null;
+  product_name: string;
+  tokens: number;
+  valid_days: number;
+  source: PaymentOrder["source"];
+  tier_id: string | null;
+  category: string | null;
+  product_code: string | null;
+  buyer_token: string | null;
+  qty: number;
+  qris_payload: string | null;
+  tg_user_id: string | null;
+  tg_chat_id: string | null;
+  tg_name: string | null;
+  tg_username: string | null;
+  tg_qris_message_id: number | null;
+  tg_delivered: number;
+  event_id: string | null;
+  delivered: string | null;
+  created_at: Date;
+  expires_at: Date;
+  paid_at: Date | null;
 }
 
-async function writeOrders(list: PaymentOrder[]): Promise<void> {
-  await fs.mkdir(path.dirname(ORDERS_FILE), { recursive: true });
-  await fs.writeFile(ORDERS_FILE, JSON.stringify(list, null, 2) + "\n", { mode: 0o600 });
+function mapOrder(r: OrderRow): PaymentOrder {
+  const hasTg = r.tg_user_id !== null;
+  return {
+    invoice: r.invoice,
+    status: r.status,
+    amount: r.amount,
+    uniqueCode: r.unique_code,
+    productId: r.product_id,
+    productName: r.product_name,
+    tokens: Number(r.tokens),
+    validDays: r.valid_days,
+    source: r.source,
+    tierId: r.tier_id ?? undefined,
+    category: r.category ?? undefined,
+    productCode: r.product_code ?? undefined,
+    buyerToken: r.buyer_token,
+    qty: r.qty,
+    qrisPayload: r.qris_payload,
+    tg: hasTg
+      ? {
+          userId: r.tg_user_id,
+          chatId: r.tg_chat_id,
+          name: r.tg_name,
+          username: r.tg_username,
+          qrisMessageId: r.tg_qris_message_id,
+        }
+      : null,
+    tgDelivered: Boolean(r.tg_delivered),
+    eventId: r.event_id ?? undefined,
+    delivered: r.delivered ?? undefined,
+    createdAt: new Date(r.created_at).toISOString(),
+    expiresAt: new Date(r.expires_at).toISOString(),
+    paidAt: r.paid_at ? new Date(r.paid_at).toISOString() : null,
+  };
 }
 
 export function invoiceCode(): string {
   return `INV${Date.now().toString(36).toUpperCase()}${Math.random().toString(36).slice(2, 5).toUpperCase()}`;
 }
 
-export async function createOrder(input: Omit<PaymentOrder, "invoice" | "status" | "qrisPayload" | "createdAt" | "expiresAt" | "uniqueCode">): Promise<
-  { ok: true; order: PaymentOrder } | { ok: false; error: string }
-> {
+export type NewOrder = {
+  amount: number;
+  productId: string;
+  productName: string;
+  tokens: number;
+  validDays: number;
+  source: PaymentOrder["source"];
+  tierId?: string | null;
+  category?: string | null;
+  productCode?: string | null;
+  buyerToken?: string | null;
+  qty?: number;
+  qrisPayload?: string;
+  tg?: PaymentOrder["tg"];
+};
+
+export async function createOrder(
+  input: NewOrder
+): Promise<{ ok: true; order: PaymentOrder } | { ok: false; error: string }> {
   const settings = await getPaymentSettings();
   if (settings.qrisProvider === "none" || !settings.qrisStatic) {
     return { ok: false, error: "Pembayaran QRIS belum aktif. Hubungi admin." };
   }
 
-  const orders = await readOrders();
   const now = new Date();
-
   let amount = input.amount;
   let uniqueCode = 0;
+
   if (settings.uniqueCodeEnabled) {
+    const pending = await query<{ amount: number }>(
+      "SELECT amount FROM payment_orders WHERE status = 'pending' AND expires_at > NOW()",
+      []
+    );
+    const used = new Set(pending.map((p) => p.amount));
     for (let i = 0; i < 80; i++) {
       const unik = Math.floor(Math.random() * 900) + 100;
       const candidate = amount + unik;
-      const clash = orders.some(
-        (o) => o.status === "pending" && o.amount === candidate && new Date(o.expiresAt).getTime() > now.getTime()
-      );
-      if (!clash) {
+      if (!used.has(candidate)) {
         amount = candidate;
         uniqueCode = unik;
         break;
@@ -202,30 +272,34 @@ export async function createOrder(input: Omit<PaymentOrder, "invoice" | "status"
   }
 
   const ttlMinutes = settings.ttlMinutes;
-  const order: PaymentOrder = {
-    ...input,
-    amount,
-    uniqueCode,
-    invoice: invoiceCode(),
-    status: "pending",
-    qrisPayload,
-    createdAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + ttlMinutes * 60_000).toISOString(),
-  };
+  const invoice = invoiceCode();
+  const expiresAt = new Date(now.getTime() + ttlMinutes * 60_000);
 
-  orders.push(order);
-  await writeOrders(orders);
-  return { ok: true, order };
+  await execute(
+    `INSERT INTO payment_orders
+     (invoice, status, amount, unique_code, product_id, product_name, tokens, valid_days, source, tier_id, category, product_code, buyer_token, qty, qris_payload, tg_user_id, tg_chat_id, tg_name, tg_username, expires_at)
+     VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      invoice, amount, uniqueCode, input.productId, input.productName, input.tokens, input.validDays,
+      input.source, input.tierId ?? null, input.category ?? null, input.productCode ?? null,
+      input.buyerToken ?? null, input.qty ?? 1, qrisPayload,
+      input.tg?.userId ?? null, input.tg?.chatId ?? null, input.tg?.name ?? null, input.tg?.username ?? null,
+      expiresAt,
+    ]
+  );
+
+  const rows = await query<OrderRow>("SELECT * FROM payment_orders WHERE invoice = ?", [invoice]);
+  return { ok: true, order: mapOrder(rows[0]) };
 }
 
 export async function getOrderByInvoice(invoice: string): Promise<PaymentOrder | null> {
-  const orders = await readOrders();
-  return orders.find((o) => o.invoice === invoice) ?? null;
+  const rows = await query<OrderRow>("SELECT * FROM payment_orders WHERE invoice = ?", [invoice]);
+  return rows.length ? mapOrder(rows[0]) : null;
 }
 
 export async function listOrders(limit = 50): Promise<PaymentOrder[]> {
-  const orders = await readOrders();
-  return orders.sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1)).slice(0, limit);
+  const rows = await query<OrderRow>("SELECT * FROM payment_orders ORDER BY created_at DESC LIMIT ?", [limit]);
+  return rows.map(mapOrder);
 }
 
 export async function listOrdersByToken(
@@ -233,75 +307,47 @@ export async function listOrdersByToken(
   page = 1,
   limit = 5
 ): Promise<{ orders: PaymentOrder[]; total: number; page: number; totalPages: number; pendingCount: number }> {
-  const all = (await readOrders())
-    .filter((o) => o.buyerToken === buyerToken)
-    .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1));
-
-  const now = Date.now();
-  const pendingCount = all.filter(
-    (o) => o.status === "pending" && new Date(o.expiresAt).getTime() > now
-  ).length;
-
-  const total = all.length;
+  const [countRows, pendingRows] = await Promise.all([
+    query<{ n: number }>("SELECT COUNT(*) AS n FROM payment_orders WHERE buyer_token = ?", [buyerToken]),
+    query<{ n: number }>(
+      "SELECT COUNT(*) AS n FROM payment_orders WHERE buyer_token = ? AND status = 'pending' AND expires_at > NOW()",
+      [buyerToken]
+    ),
+  ]);
+  const total = Number(countRows[0]?.n ?? 0);
+  const pendingCount = Number(pendingRows[0]?.n ?? 0);
   const totalPages = Math.max(1, Math.ceil(total / limit));
   const safePage = Math.min(Math.max(1, page), totalPages);
-  const orders = all.slice((safePage - 1) * limit, safePage * limit);
-
-  return { orders, total, page: safePage, totalPages, pendingCount };
+  const rows = await query<OrderRow>(
+    "SELECT * FROM payment_orders WHERE buyer_token = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+    [buyerToken, limit, (safePage - 1) * limit]
+  );
+  return { orders: rows.map(mapOrder), total, page: safePage, totalPages, pendingCount };
 }
 
 export async function countPendingByToken(buyerToken: string): Promise<number> {
-  const now = Date.now();
-  const orders = await readOrders();
-  return orders.filter(
-    (o) => o.buyerToken === buyerToken && o.status === "pending" && new Date(o.expiresAt).getTime() > now
-  ).length;
+  const rows = await query<{ n: number }>(
+    "SELECT COUNT(*) AS n FROM payment_orders WHERE buyer_token = ? AND status = 'pending' AND expires_at > NOW()",
+    [buyerToken]
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 const EXPIRE_GRACE_MS = 10 * 60 * 1000;
 
-/** Expire order pending yang sudah lewat TTL + grace. */
+/** Expire order pending lewat TTL + grace. */
 export async function expireOverdue(): Promise<void> {
-  const orders = await readOrders();
-  const cutoff = Date.now() - EXPIRE_GRACE_MS;
-  let changed = false;
-  for (const o of orders) {
-    if (o.status === "pending" && new Date(o.expiresAt).getTime() <= cutoff) {
-      o.status = "expired";
-      changed = true;
-    }
-  }
-  if (changed) await writeOrders(orders);
+  await execute(
+    `UPDATE payment_orders SET status = 'expired' WHERE status = 'pending' AND expires_at <= (NOW() - INTERVAL 10 MINUTE)`
+  );
 }
 
 export async function cancelOrder(invoice: string): Promise<boolean> {
-  const orders = await readOrders();
-  const o = orders.find((x) => x.invoice === invoice && x.status === "pending");
-  if (!o) return false;
-  o.status = "expired";
-  await writeOrders(orders);
-  return true;
+  const r = await execute("UPDATE payment_orders SET status = 'expired' WHERE invoice = ? AND status = 'pending'", [invoice]);
+  return r.affectedRows === 1;
 }
 
-/* ---------- payment events (dedupe) ---------- */
-
-type PaymentEvent = { eventKey: string; amount: number | null; createdAt: string; matched: boolean };
-
-async function readEvents(): Promise<PaymentEvent[]> {
-  try {
-    const raw = JSON.parse(await fs.readFile(EVENTS_FILE, "utf8")) as unknown;
-    return Array.isArray(raw) ? (raw as PaymentEvent[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-async function writeEvents(list: PaymentEvent[]): Promise<void> {
-  await fs.mkdir(path.dirname(EVENTS_FILE), { recursive: true });
-  await fs.writeFile(EVENTS_FILE, JSON.stringify(list.slice(-500), null, 2) + "\n", { mode: 0o600 });
-}
-
-/* ---------- notification parser (Android forwarder) ---------- */
+/* ---------- notification parser ---------- */
 
 export type ParsedPayment = {
   provider: "neobank" | "dana" | "gopay" | "unknown";
@@ -372,29 +418,6 @@ export function makeEventKey(body: Record<string, unknown>): string {
 
 /* ---------- match event → order + fulfill ---------- */
 
-/** Claim: atomic-ish match event amount ke order pending. */
-async function claimPaymentEvent(eventKey: string, amount: number): Promise<PaymentOrder | null> {
-  const orders = await readOrders();
-  const now = Date.now();
-
-  const order = orders
-    .filter(
-      (o) =>
-        o.status === "pending" &&
-        o.amount === amount &&
-        new Date(o.expiresAt).getTime() > now - EXPIRE_GRACE_MS &&
-        !o.eventId
-    )
-    .sort((a, b) => (a.createdAt < b.createdAt ? -1 : 1))[0];
-
-  if (!order) return null;
-  order.status = "paid";
-  order.paidAt = new Date().toISOString();
-  order.eventId = eventKey;
-  await writeOrders(orders);
-  return order;
-}
-
 export async function processPaymentCallback(
   body: Record<string, unknown>,
   secret: string
@@ -432,35 +455,73 @@ export async function processPaymentCallback(
   }
 
   const eventKey = makeEventKey(body);
-  const events = await readEvents();
-  if (events.some((e) => e.eventKey === eventKey && e.matched)) {
-    return { ok: true, status: 200, result: { matched: false } };
-  }
-  events.push({ eventKey, amount: parsed.amount, createdAt: new Date().toISOString(), matched: false });
-  await writeEvents(events);
 
-  const order = await claimPaymentEvent(eventKey, parsed.amount);
-  if (!order) {
-    await writeEvents(
-      (await readEvents()).map((e) => (e.eventKey === eventKey ? { ...e, matched: false } : e))
-    );
+  // dedupe + claim atomic
+  const claimed = await claimPaymentEvent(eventKey, parsed.amount);
+  if (!claimed) {
     return { ok: true, status: 200, result: { matched: false } };
   }
 
-  await writeEvents((await readEvents()).map((e) => (e.eventKey === eventKey ? { ...e, matched: true } : e)));
-
-  const fulfilled = await fulfillOrder(order.invoice);
-
-  return { ok: true, status: 200, result: { matched: true, invoice: order.invoice, fulfilled } };
+  const fulfilled = await fulfillOrder(claimed.invoice);
+  return { ok: true, status: 200, result: { matched: true, invoice: claimed.invoice, fulfilled } };
 }
 
-/** Fulfillment: tambah kuota bandel ke member setelah order paid. Idempoten. */
+/** Claim: insert event, lalu tandai order pending yang cocok jadi paid (atomic). */
+async function claimPaymentEvent(eventKey: string, amount: number): Promise<{ invoice: string } | null> {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // dedupe
+    const [existing] = await conn.query("SELECT id, matched FROM payment_events WHERE event_key = ? FOR UPDATE", [eventKey]);
+    const rows = existing as { id: number; matched: number }[];
+    if (rows.length > 0 && rows[0].matched === 1) {
+      await conn.rollback();
+      return null;
+    }
+    if (rows.length === 0) {
+      await conn.query("INSERT INTO payment_events (event_key, amount, matched) VALUES (?, ?, 0)", [eventKey, amount]);
+    }
+
+    // match order: pending + amount sama + belum lewat grace
+    const [candidates] = await conn.query(
+      `SELECT invoice FROM payment_orders
+       WHERE status = 'pending' AND amount = ? AND event_id IS NULL
+         AND expires_at > (NOW() - INTERVAL 10 MINUTE)
+       ORDER BY created_at ASC LIMIT 1 FOR UPDATE`,
+      [amount]
+    );
+    const cand = candidates as { invoice: string }[];
+    if (cand.length === 0) {
+      await conn.commit();
+      return null;
+    }
+
+    const invoice = cand[0].invoice;
+    await conn.query("UPDATE payment_orders SET status = 'paid', paid_at = NOW(), event_id = ? WHERE invoice = ?", [
+      eventKey,
+      invoice,
+    ]);
+    await conn.query("UPDATE payment_events SET matched = 1 WHERE event_key = ?", [eventKey]);
+    await conn.commit();
+    return { invoice };
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
+}
+
+/** Fulfillment: tambah kuota bandel ke member (order web) setelah paid. Idempoten. */
 export async function fulfillOrder(invoice: string): Promise<string | null> {
-  const orders = await readOrders();
-  const order = orders.find((o) => o.invoice === invoice);
-  if (!order) return null;
+  const orders = await query<OrderRow>("SELECT * FROM payment_orders WHERE invoice = ?", [invoice]);
+  if (orders.length === 0) return null;
+  const order = mapOrder(orders[0]);
   if (order.delivered) return order.delivered;
   if (order.status !== "paid") return null;
+  // order telegram / tanpa buyerToken: delivery ditangani proses bot telegram
+  if (!order.buyerToken) return null;
 
   const { addCustomerQuotaByToken } = await import("./member-quota");
   const r = await addCustomerQuotaByToken(order.buyerToken, order.tokens, order.validDays);
@@ -470,8 +531,10 @@ export async function fulfillOrder(invoice: string): Promise<string | null> {
     : null;
 
   if (r.ok) {
-    order.delivered = delivered ?? `+${order.tokens} token`;
-    await writeOrders(orders);
+    await execute("UPDATE payment_orders SET delivered = ? WHERE invoice = ?", [
+      delivered ?? `+${order.tokens} token`,
+      invoice,
+    ]);
   }
   return delivered;
 }

@@ -1,8 +1,5 @@
-import { promises as fs } from "node:fs";
-import path from "node:path";
+import { query, execute } from "./db";
 import { randomUUID } from "node:crypto";
-
-const FILE = "data/products.json";
 
 export type Product = {
   id: string;
@@ -16,7 +13,6 @@ export type Product = {
   price: number;
   enabled: boolean;
   stock: number | null;
-  stockItems?: string[];
   soldCount?: number;
   createdAt: string;
 };
@@ -40,25 +36,44 @@ export const BANDEL_TIERS: { id: string; label: string; tokens: number; validDay
   { id: "100b", label: "100 miliar", tokens: 100_000_000_000, validDays: 28 },
 ];
 
-async function read(): Promise<ProductList> {
-  try {
-    const raw = JSON.parse(await fs.readFile(FILE, "utf8")) as unknown;
-    if (!Array.isArray(raw)) return [];
-    return raw.filter((p): p is Product => {
-      const q = p as Product;
-      return typeof q?.id === "string" && typeof q?.name === "string" && ["bandel", "gateway", "manual"].includes(q?.source);
-    });
-  } catch {
-    return [];
-  }
+interface ProductRow {
+  id: string;
+  name: string;
+  source: Product["source"];
+  tier_id: string | null;
+  category: string | null;
+  product_code: string | null;
+  tokens: number;
+  valid_days: number;
+  price: number;
+  enabled: number;
+  stock: number | null;
+  sold_count: number;
+  created_at: Date;
 }
 
-async function write(list: ProductList): Promise<void> {
-  await fs.mkdir(path.dirname(FILE), { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify(list, null, 2) + "\n", { mode: 0o600 });
+function mapRow(r: ProductRow): Product {
+  return {
+    id: r.id,
+    name: r.name,
+    source: r.source,
+    tierId: r.tier_id ?? undefined,
+    category: r.category ?? undefined,
+    productCode: r.product_code ?? undefined,
+    tokens: Number(r.tokens),
+    validDays: r.valid_days,
+    price: r.price,
+    enabled: Boolean(r.enabled),
+    stock: r.stock === null ? null : Number(r.stock),
+    soldCount: r.sold_count,
+    createdAt: new Date(r.created_at).toISOString(),
+  };
 }
 
-export const getProducts = () => read();
+export async function getProducts(): Promise<ProductList> {
+  const rows = await query<ProductRow>("SELECT * FROM products ORDER BY created_at ASC");
+  return rows.map(mapRow);
+}
 
 export async function createProduct(input: {
   name: string;
@@ -72,110 +87,131 @@ export async function createProduct(input: {
   stock: number | null;
   stockItems?: string[];
 }): Promise<Product> {
-  const list = await read();
-  const product: Product = {
-    id: randomUUID().slice(0, 8),
-    name: input.name.trim(),
-    source: input.source,
-    tierId: input.source === "bandel" ? input.tierId : undefined,
-    category: input.source === "manual" ? (input.category ?? "").trim() : undefined,
-    productCode: input.source === "manual" ? (input.productCode ?? "").trim().toUpperCase() : undefined,
-    tokens: input.tokens,
-    validDays: input.validDays,
-    price: input.price,
-    enabled: true,
-    stock: input.source === "manual" ? (input.stockItems?.length ?? 0) : input.source === "gateway" ? input.stock : null,
-    stockItems: input.source === "manual" ? (input.stockItems ?? []) : undefined,
-    soldCount: 0,
-    createdAt: new Date().toISOString(),
-  };
-  list.push(product);
-  await write(list);
-  return product;
+  const id = randomUUID().slice(0, 8);
+  const stock = input.source === "manual" ? (input.stockItems?.length ?? 0) : input.stock;
+  await execute(
+    `INSERT INTO products (id, name, source, tier_id, category, product_code, tokens, valid_days, price, enabled, stock, sold_count)
+     VALUES (?,?,?,?,?,?,?,?,?,1,?,0)`,
+    [
+      id, input.name.trim(), input.source, input.tierId ?? null, input.category ?? null, input.productCode ?? null,
+      input.tokens, input.validDays, input.price, stock,
+    ]
+  );
+  if (input.source === "manual" && input.stockItems?.length) {
+    for (const item of input.stockItems) {
+      await execute("INSERT IGNORE INTO product_stocks (product_id, value) VALUES (?, ?)", [id, item]);
+    }
+  }
+  const rows = await query<ProductRow>("SELECT * FROM products WHERE id = ?", [id]);
+  return mapRow(rows[0]);
 }
 
 export async function updateProduct(
   id: string,
   patch: { name?: string; price?: number; enabled?: boolean; stock?: number | null; category?: string; productCode?: string }
 ): Promise<Product | null> {
-  const list = await read();
-  const idx = list.findIndex((p) => p.id === id);
-  if (idx === -1) return null;
-  const p = list[idx];
-  if (patch.name !== undefined) p.name = patch.name.trim();
-  if (patch.price !== undefined && Number.isFinite(patch.price) && patch.price >= 0) p.price = patch.price;
-  if (patch.enabled !== undefined) p.enabled = patch.enabled;
-  if (patch.category !== undefined && p.source === "manual") p.category = patch.category.trim();
-  if (patch.productCode !== undefined && p.source === "manual") p.productCode = patch.productCode.trim().toUpperCase();
-  if (patch.stock !== undefined && p.source === "gateway") p.stock = patch.stock;
-  list[idx] = p;
-  await write(list);
-  return p;
-}
-
-/** Tambah stok manual (append, tanpa duplikat). */
-export async function addStockItems(id: string, items: string[]): Promise<{ product: Product; added: number; duplicates: number } | null> {
-  const list = await read();
-  const idx = list.findIndex((p) => p.id === id);
-  if (idx === -1 || list[idx].source !== "manual") return null;
-
-  const p = list[idx];
-  p.stockItems = p.stockItems ?? [];
-  const existing = new Set(p.stockItems);
-  let added = 0;
-  let duplicates = 0;
-  for (const it of items) {
-    if (existing.has(it)) duplicates++;
-    else {
-      p.stockItems.push(it);
-      existing.add(it);
-      added++;
-    }
+  const sets: string[] = [];
+  const params: unknown[] = [];
+  if (patch.name !== undefined) {
+    sets.push("name = ?");
+    params.push(patch.name.trim());
   }
-  p.stock = p.stockItems.length;
-  list[idx] = p;
-  await write(list);
-  return { product: p, added, duplicates };
+  if (patch.price !== undefined && Number.isFinite(patch.price) && patch.price >= 0) {
+    sets.push("price = ?");
+    params.push(patch.price);
+  }
+  if (patch.enabled !== undefined) {
+    sets.push("enabled = ?");
+    params.push(patch.enabled ? 1 : 0);
+  }
+  if (patch.stock !== undefined) {
+    sets.push("stock = ?");
+    params.push(patch.stock);
+  }
+  if (patch.category !== undefined) {
+    sets.push("category = ?");
+    params.push(patch.category.trim());
+  }
+  if (patch.productCode !== undefined) {
+    sets.push("product_code = ?");
+    params.push(patch.productCode.trim().toUpperCase());
+  }
+  if (sets.length === 0) return null;
+  params.push(id);
+  await execute(`UPDATE products SET ${sets.join(", ")} WHERE id = ?`, params);
+  const rows = await query<ProductRow>("SELECT * FROM products WHERE id = ?", [id]);
+  return rows.length ? mapRow(rows[0]) : null;
 }
 
-/** Hapus stok manual (menghapus baris yang sama persis). */
+/** Tambah stok manual (duplikat di-skip oleh UNIQUE key). */
+export async function addStockItems(id: string, items: string[]): Promise<{ product: Product; added: number; duplicates: number } | null> {
+  const rows = await query<ProductRow>("SELECT * FROM products WHERE id = ? AND source = 'manual'", [id]);
+  if (rows.length === 0) return null;
+
+  let added = 0;
+  for (const item of items) {
+    const r = await execute("INSERT IGNORE INTO product_stocks (product_id, value) VALUES (?, ?)", [id, item]);
+    if (r.affectedRows === 1) added++;
+  }
+  const duplicates = items.length - added;
+  await execute(
+    "UPDATE products SET stock = (SELECT COUNT(*) FROM product_stocks WHERE product_id = ?) WHERE id = ?",
+    [id, id]
+  );
+  const fresh = await query<ProductRow>("SELECT * FROM products WHERE id = ?", [id]);
+  return { product: mapRow(fresh[0]), added, duplicates };
+}
+
+/** Hapus stok manual (baris sama persis). */
 export async function removeStockItems(id: string, items: string[]): Promise<{ product: Product; removed: number } | null> {
-  const list = await read();
-  const idx = list.findIndex((p) => p.id === id);
-  if (idx === -1 || list[idx].source !== "manual") return null;
+  const rows = await query<ProductRow>("SELECT * FROM products WHERE id = ? AND source = 'manual'", [id]);
+  if (rows.length === 0) return null;
 
-  const p = list[idx];
-  const toRemove = new Set(items);
-  const before = p.stockItems?.length ?? 0;
-  p.stockItems = (p.stockItems ?? []).filter((i) => !toRemove.has(i));
-  const removed = before - p.stockItems.length;
-  p.stock = p.stockItems.length;
-  list[idx] = p;
-  await write(list);
-  return { product: p, removed };
+  let removed = 0;
+  for (const item of items) {
+    const r = await execute("DELETE FROM product_stocks WHERE product_id = ? AND value = ?", [id, item]);
+    removed += r.affectedRows;
+  }
+  await execute(
+    "UPDATE products SET stock = (SELECT COUNT(*) FROM product_stocks WHERE product_id = ?) WHERE id = ?",
+    [id, id]
+  );
+  const fresh = await query<ProductRow>("SELECT * FROM products WHERE id = ?", [id]);
+  return { product: mapRow(fresh[0]), removed };
 }
 
-/** Ambil 1 item stok (FIFO) untuk delivery — dipakai saat order manual dibayar. */
-export async function takeStockItem(id: string): Promise<{ item: string; product: Product } | null> {
-  const list = await read();
-  const idx = list.findIndex((p) => p.id === id);
-  if (idx === -1 || list[idx].source !== "manual") return null;
+/** Ambil daftar stok manual. */
+export async function getStockItems(id: string): Promise<string[]> {
+  const rows = await query<{ value: string }>("SELECT value FROM product_stocks WHERE product_id = ? ORDER BY id ASC", [id]);
+  return rows.map((r) => r.value);
+}
 
-  const p = list[idx];
-  if (!p.stockItems || p.stockItems.length === 0) return null;
-
-  const item = p.stockItems.shift()!;
-  p.stock = p.stockItems.length;
-  p.soldCount = (p.soldCount ?? 0) + 1;
-  list[idx] = p;
-  await write(list);
-  return { item, product: p };
+/** Ambil N item stok FIFO (atomic) — untuk delivery order manual. */
+export async function takeStockItems(id: string, qty: number): Promise<string[] | null> {
+  const conn = await (await import("./db")).pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.query("SELECT id, value FROM product_stocks WHERE product_id = ? ORDER BY id ASC LIMIT ? FOR UPDATE", [id, qty]);
+    const items = rows as { id: number; value: string }[];
+    if (items.length < qty) {
+      await conn.rollback();
+      return null;
+    }
+    await conn.query("DELETE FROM product_stocks WHERE id IN (?)", [items.map((i) => i.id)]);
+    await conn.query("UPDATE products SET stock = stock - ?, sold_count = sold_count + ? WHERE id = ?", [qty, qty, id]);
+    await conn.commit();
+    return items.map((i) => i.value);
+  } catch (e) {
+    await conn.rollback();
+    throw e;
+  } finally {
+    conn.release();
+  }
 }
 
 export async function deleteProduct(id: string): Promise<boolean> {
-  const list = await read();
-  const next = list.filter((p) => p.id !== id);
-  if (next.length === list.length) return false;
-  await write(next);
+  const r = await execute("DELETE FROM products WHERE id = ?", [id]);
+  if (r.affectedRows !== 1) return false;
+  await execute("DELETE FROM product_stocks WHERE product_id = ?", [id]);
   return true;
 }

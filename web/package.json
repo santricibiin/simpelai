@@ -11,10 +11,12 @@
     "@types/qrcode": "^1.5.6",
     "framer-motion": "11.18.2",
     "lucide-react": "0.474.0",
+    "mysql2": "^3.24.2",
     "next": "15.5.23",
     "qrcode": "^1.5.4",
     "react": "19.0.0",
-    "react-dom": "19.0.0"
+    "react-dom": "19.0.0",
+    "telegraf": "^4.16.3"
   },
   "devDependencies": {
     "@types/node": "22.10.2",

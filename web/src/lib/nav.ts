@@ -17,6 +17,7 @@ const allGroups: NavGroup[] = [
       { href: "/admin/bandel", label: "Bandel", icon: "Wallet" },
       { href: "/admin/produk", label: "Produk", icon: "Package" },
       { href: "/admin/payment", label: "Payment", icon: "CreditCard" },
+      { href: "/admin/telegram", label: "Telegram Bot", icon: "Bot" },
       { href: "/admin/keys", label: "API Keys", icon: "KeyRound" },
       { href: "/admin/users", label: "Users & Role", icon: "Users" },
       { href: "/admin/billing", label: "Billing", icon: "Coins", hidden: true },

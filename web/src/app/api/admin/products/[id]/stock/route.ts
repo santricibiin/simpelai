@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/reseller";
-import { addStockItems, getProducts, removeStockItems } from "@/lib/products";
+import { addStockItems, getProducts, getStockItems, removeStockItems } from "@/lib/products";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +21,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const product = (await getProducts()).find((p) => p.id === id && p.source === "manual");
   if (!product) return NextResponse.json({ error: "Produk manual tidak ditemukan" }, { status: 404 });
 
-  return NextResponse.json({ items: product.stockItems ?? [], stock: product.stock ?? 0 });
+  const items = await getStockItems(id);
+  return NextResponse.json({ items, stock: items.length });
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {

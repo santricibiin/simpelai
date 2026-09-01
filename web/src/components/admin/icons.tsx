@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Bot,
   BarChart3,
   Boxes,
   Coins,
@@ -45,6 +46,7 @@ export const icons: Record<string, LucideIcon> = {
   BarChart3,
   PieChart,
   Zap: Activity,
+  Bot,
   Cpu,
 };
 

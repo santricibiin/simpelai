@@ -377,16 +377,16 @@ export default function PaymentSettingsForm({
                   <KeyRound className="mr-1 inline h-3 w-3" /> Secret callback forwarder
                 </span>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative min-w-0 flex-1">
-                    <input
-                      type={showSecret ? "text" : "password"}
-                      value={settings.forwarderSecret}
-                      onChange={(e) => setSettings({ ...settings, forwarderSecret: e.target.value })}
-                      placeholder="klik Generate untuk membuat otomatis"
-                      spellCheck={false}
-                      autoComplete="off"
-                      className={`${field} pr-11 font-mono text-xs`}
-                    />
+            <div className="relative min-w-0 flex-1">
+              <input
+                type={showSecret ? "text" : "password"}
+                value={settings.forwarderSecret}
+                onChange={(e) => setSettings({ ...settings, forwarderSecret: e.target.value })}
+                placeholder={initialSettings.forwarderSecret ? "tersimpan — kosongkan bila tidak diganti" : "klik Generate untuk membuat otomatis"}
+                spellCheck={false}
+                autoComplete="off"
+                className={`${field} pr-11 font-mono text-xs`}
+              />
                     <button
                       type="button"
                       onClick={() => setShowSecret((s) => !s)}

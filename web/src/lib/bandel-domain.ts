@@ -6,7 +6,7 @@ import path from "node:path";
 
 const run = promisify(execFile);
 
-const DATA_FILE = "data/bandel-domain.json";
+
 const VPS_IP = process.env.VPS_PUBLIC_IP ?? "172.235.251.230";
 const MANAGED_TAG = "# managed-by: simpelai-bandel";
 const NGINX_AVAILABLE = "/etc/nginx/sites-available";
@@ -17,17 +17,14 @@ export const DEFAULT_BANDEL_DOMAIN = "ai.buatprem.biz.id";
 const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$/;
 
 export async function getBandelDomain(): Promise<string> {
-  try {
-    const raw = JSON.parse(await fs.readFile(DATA_FILE, "utf8")) as { domain?: unknown };
-    return typeof raw.domain === "string" ? raw.domain : DEFAULT_BANDEL_DOMAIN;
-  } catch {
-    return DEFAULT_BANDEL_DOMAIN;
-  }
+  const { getAppSetting } = await import("./app-settings");
+  const raw = await getAppSetting<{ domain?: unknown }>("bandel-domain", {});
+  return typeof raw.domain === "string" && raw.domain ? raw.domain : DEFAULT_BANDEL_DOMAIN;
 }
 
 async function saveBandelDomain(domain: string): Promise<void> {
-  await fs.mkdir(path.dirname(DATA_FILE), { recursive: true });
-  await fs.writeFile(DATA_FILE, JSON.stringify({ domain }, null, 2) + "\n", { mode: 0o600 });
+  const { setAppSetting } = await import("./app-settings");
+  await setAppSetting("bandel-domain", { domain });
 }
 
 function httpConf(domain: string): string {

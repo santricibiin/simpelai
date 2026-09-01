@@ -77,7 +77,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Rate limit harus 1-10 pesanan pending." }, { status: 400 });
   }
 
-  const secret = typeof forwarderSecret === "string" ? forwarderSecret.trim() : "";
+  const secretRaw = typeof forwarderSecret === "string" ? forwarderSecret.trim() : "";
+  // field kosong = pertahankan secret lama (seperti behavior token bot)
+  const current = await getPaymentSettings();
+  const secret = secretRaw || current.forwarderSecret;
   if (secret && secret.length < 8) {
     return NextResponse.json({ error: "Secret callback minimal 8 karakter." }, { status: 400 });
   }
