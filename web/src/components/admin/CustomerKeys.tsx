@@ -64,7 +64,13 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-export default function CustomerKeys({ initial }: { initial: CustomerKeyList | null }) {
+export default function CustomerKeys({
+  initial,
+  tokenById,
+}: {
+  initial: CustomerKeyList | null;
+  tokenById?: Map<string, string>;
+}) {
   const [list, setList] = useState<CustomerKeyList | null>(initial);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(initial?.page ?? 1);
@@ -480,6 +486,18 @@ export default function CustomerKeys({ initial }: { initial: CustomerKeyList | n
                 <td className="py-3 pr-3 font-mono text-[10px] text-slate-400">{clock(c.expiresAt)}</td>
                 <td className="py-3 text-right">
                   <div className="flex justify-end gap-1.5">
+                    {tokenById?.get(String(c.id)) && (
+                      <a
+                        href={`/quota/${tokenById.get(String(c.id))}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        title="Buka dashboard member"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-900/15 px-2.5 py-1.5 text-xs transition hover:border-crimson-500 hover:text-crimson-500 dark:border-white/15"
+                      >
+                        <ExternalLink className="h-3.5 w-3.5" />
+                        Dashboard
+                      </a>
+                    )}
                     <button
                       type="button"
                       onClick={() => {

@@ -33,6 +33,8 @@ export type CustomerKey = {
   validDays?: number;
   expiresAt?: string | null;
   createdAt?: string | null;
+  secretToken?: string | null;
+  dashboardUrl?: string | null;
 };
 
 export type CustomerKeyList = {
