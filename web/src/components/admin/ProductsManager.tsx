@@ -45,7 +45,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
 
   const [form, setForm] = useState({
     name: "",
-    source: "bandel" as "bandel" | "gateway",
+    source: "bandel" as "bandel" | "gateway" | "manual",
     tierId: tiers[0]?.id ?? "5m",
     tokens: "1000000",
     validDays: "7",
@@ -53,13 +53,16 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
     stock: "",
     unlimited: true,
     gatewayPreset: "custom" as string,
+    category: "",
+    productCode: "",
+    stockItems: "",
   });
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "bandel" | "gateway" | "aktif" | "nonaktif">("all");
+  const [filter, setFilter] = useState<"all" | "bandel" | "gateway" | "manual" | "aktif" | "nonaktif">("all");
 
   const [editTarget, setEditTarget] = useState<Product | null>(null);
   const [editName, setEditName] = useState("");
@@ -68,6 +71,8 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
   const [modalError, setModalError] = useState<string | null>(null);
 
   const [delTarget, setDelTarget] = useState<Product | null>(null);
+
+  // kelola stok manual dialihkan ke halaman /admin/produk/[id]/stok
 
   const call = async (path: string, init?: RequestInit) => {
     const res = await fetch(`/api/admin/products${path}`, init).catch(() => null);
@@ -88,10 +93,14 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
         price: Number(form.price) || 0,
       };
       if (form.source === "bandel") payload.tierId = form.tierId;
-      else {
+      else if (form.source === "gateway") {
         payload.tokens = Number(form.tokens);
         payload.validDays = Number(form.validDays);
         payload.stock = form.unlimited ? null : Number(form.stock);
+      } else {
+        payload.category = form.category;
+        payload.productCode = form.productCode;
+        payload.stockItems = form.stockItems;
       }
 
       const created = await call("", {
@@ -100,7 +109,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
         body: JSON.stringify(payload),
       });
       setProducts((p) => [...p, created as Product]);
-      setForm({ ...form, name: "", price: "", stock: "", unlimited: true });
+      setForm({ ...form, name: "", price: "", stock: "", stockItems: "", unlimited: true });
       router.refresh();
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Gagal menambah produk.");
@@ -174,6 +183,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
   const visible = products.filter((p) => {
     if (filter === "bandel") return p.source === "bandel";
     if (filter === "gateway") return p.source === "gateway";
+    if (filter === "manual") return p.source === "manual";
     if (filter === "aktif") return p.enabled;
     if (filter === "nonaktif") return !p.enabled;
     return true;
@@ -182,8 +192,12 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
   const kpis = [
     { icon: Package, label: "Total produk", value: nf.format(products.length) },
     { icon: Zap, label: "Aktif dijual", value: `${activeCount}/${products.length}` },
-    { icon: Router, label: "Stok bandel", value: nf.format(products.filter((p) => p.source === "bandel").length) },
-    { icon: Coins, label: "Stok gateway", value: nf.format(products.filter((p) => p.source === "gateway").length) },
+    { icon: Router, label: "Produk bandel", value: nf.format(products.filter((p) => p.source === "bandel").length) },
+    {
+      icon: Boxes,
+      label: "Stok manual",
+      value: `${nf.format(products.filter((p) => p.source === "manual").reduce((s, p) => s + (p.stock ?? 0), 0))} item`,
+    },
   ];
 
   const filters: { id: typeof filter; label: string }[] = [
@@ -192,6 +206,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
     { id: "nonaktif", label: "Nonaktif" },
     { id: "bandel", label: "Bandel" },
     { id: "gateway", label: "Gateway" },
+    { id: "manual", label: "Manual" },
   ];
 
   return (
@@ -231,11 +246,12 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
 
           <label className="block">
             <span className={labelCls}>Sumber stok</span>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {(
                 [
                   { id: "bandel", label: "Bandel", icon: Router },
                   { id: "gateway", label: "Gateway", icon: Coins },
+                  { id: "manual", label: "Manual", icon: Boxes },
                 ] as const
               ).map((s) => {
                 const active = form.source === s.id;
@@ -273,7 +289,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
           </label>
         </div>
 
-        {form.source === "bandel" ? (
+        {form.source === "bandel" && (
           <div>
             <span className={labelCls}>
               Paket bandel
@@ -307,7 +323,9 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
               })}
             </div>
           </div>
-        ) : (
+        )}
+
+        {form.source === "gateway" && (
           <div className="space-y-3">
             <div>
               <span className={labelCls}>
@@ -418,9 +436,70 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                       className={`${field} font-mono text-xs`}
                     />
                   )}
-                </div>
-              </label>
-            </div>
+                 </div>
+               </label>
+             </div>
+           </div>
+        )}
+
+        {form.source === "manual" && (
+          <div className="grid gap-3 lg:grid-cols-3">
+            <label className="block">
+              <span className={labelCls}>Kategori</span>
+              <input
+                required
+                maxLength={40}
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                placeholder="Akun Premium"
+                className={field}
+              />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Code produk</span>
+              <input
+                required
+                maxLength={20}
+                value={form.productCode}
+                onChange={(e) => setForm({ ...form, productCode: e.target.value.toUpperCase() })}
+                placeholder="NETFLIX1M"
+                spellCheck={false}
+                className={`${field} font-mono text-xs`}
+              />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Harga (Rp)</span>
+              <input
+                required
+                type="number"
+                min={0}
+                value={form.price}
+                onChange={(e) => setForm({ ...form, price: e.target.value })}
+                placeholder="15000"
+                className={`${field} font-mono text-xs`}
+              />
+            </label>
+
+            <label className="block lg:col-span-3">
+              <span className={labelCls}>
+                Stok awal — email:password per baris (1 baris = 1 stok
+                {form.stockItems
+                  ? ` · ${form.stockItems.split(/\r?\n/).filter((l) => l.trim() && l.includes(":")).length} item terdeteksi`
+                  : ""}
+                )
+              </span>
+              <textarea
+                value={form.stockItems}
+                onChange={(e) => setForm({ ...form, stockItems: e.target.value })}
+                placeholder={"email1@gmail.com:password123\nemail2@gmail.com:password456"}
+                rows={5}
+                spellCheck={false}
+                className={`${field} font-mono text-[11px]`}
+              />
+              <span className="mt-1.5 block text-[11px] text-slate-500 dark:text-slate-400">
+                Boleh kosong dulu — stok bisa ditambah kapan saja lewat tombol "Stok" di katalog.
+              </span>
+            </label>
           </div>
         )}
 
@@ -507,21 +586,38 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                   </div>
 
                   <div className="mt-4">
-                    <p className="font-display text-3xl font-semibold tracking-tight">
-                      {compact(p.tokens)}
-                      <span className="ml-1 text-sm font-medium text-slate-400">token</span>
-                    </p>
+                    {p.source === "manual" ? (
+                      <p className="font-display text-3xl font-semibold tracking-tight">
+                        {p.stock ?? 0}
+                        <span className="ml-1 text-sm font-medium text-slate-400">
+                          stok{p.soldCount ? ` · ${p.soldCount} terjual` : ""}
+                        </span>
+                      </p>
+                    ) : (
+                      <p className="font-display text-3xl font-semibold tracking-tight">
+                        {compact(p.tokens)}
+                        <span className="ml-1 text-sm font-medium text-slate-400">token</span>
+                      </p>
+                    )}
                   </div>
 
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span
                       className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase ${
-                        p.source === "bandel" ? "bg-sky-500/10 text-sky-400" : "bg-emerald-500/10 text-emerald-400"
+                        p.source === "bandel"
+                          ? "bg-sky-500/10 text-sky-400"
+                          : p.source === "manual"
+                            ? "bg-violet-500/10 text-violet-400"
+                            : "bg-emerald-500/10 text-emerald-400"
                       }`}
                     >
                       {p.source === "bandel" ? (
                         <>
                           <Router className="h-3 w-3" /> bandel {p.tierId?.toUpperCase()}
+                        </>
+                      ) : p.source === "manual" ? (
+                        <>
+                          <Boxes className="h-3 w-3" /> {p.productCode}
                         </>
                       ) : (
                         <>
@@ -530,9 +626,17 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                         </>
                       )}
                     </span>
-                    <span className="rounded-full bg-slate-500/10 px-2 py-0.5 font-mono text-[10px] text-slate-400">
-                      {p.validDays} hari
-                    </span>
+                    {p.source === "manual" ? (
+                      p.category && (
+                        <span className="rounded-full bg-slate-500/10 px-2 py-0.5 font-mono text-[10px] text-slate-400">
+                          {p.category}
+                        </span>
+                      )
+                    ) : (
+                      <span className="rounded-full bg-slate-500/10 px-2 py-0.5 font-mono text-[10px] text-slate-400">
+                        {p.validDays} hari
+                      </span>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-end justify-between gap-3 border-t border-slate-900/10 pt-4 dark:border-white/10">
@@ -541,6 +645,15 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                       <p className="font-display text-xl font-semibold text-crimson-500">{rupiah(p.price)}</p>
                     </div>
                     <div className="flex gap-1.5">
+                      {p.source === "manual" && (
+                        <a
+                          href={`/admin/produk/${p.id}/stok`}
+                          className="inline-flex items-center gap-1 rounded-lg border border-crimson/30 bg-crimson/5 px-2.5 py-1.5 text-xs font-semibold text-crimson-500 transition hover:bg-crimson/10"
+                        >
+                          <Boxes className="h-3.5 w-3.5" />
+                          Stok
+                        </a>
+                      )}
                       <button
                         type="button"
                         onClick={() => toggle(p)}
@@ -600,6 +713,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
           </ul>
         )}
       </section>
+
 
       <Modal
         open={editTarget !== null}

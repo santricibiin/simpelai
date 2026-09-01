@@ -206,6 +206,19 @@ export async function listCustomerKeys(opts: {
   return { status: 200, data: r.data as CustomerKeyList, error: null };
 }
 
+/** Ambil SEMUA customer (paging otomatis hingga habis). */
+export async function listAllCustomerKeys(): Promise<CustomerKey[]> {
+  const out: CustomerKey[] = [];
+  for (let p = 1; p <= 20; p++) {
+    const r = await resellerFetch(`/customer-keys?page=${p}&limit=200`);
+    if (!r.data) break;
+    const d = r.data as CustomerKeyList;
+    out.push(...d.data);
+    if (p >= d.totalPages) break;
+  }
+  return out;
+}
+
 export async function getCustomerKey(
   id: number
 ): Promise<{ status: number; data: CustomerKey | null; error: string | null }> {
