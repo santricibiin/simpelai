@@ -7,6 +7,8 @@ import {
   Boxes,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Copy,
   Cpu,
@@ -19,12 +21,17 @@ import {
   Lock,
   LogIn,
   MessageSquare,
+  PlusCircle,
+  QrCode,
+  Receipt,
   RefreshCw,
+  ShoppingCart,
   Terminal,
   Unlock,
   XCircle,
 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import QRCode from "qrcode";
+import { useCallback, useEffect, useRef, useState } from "react";
 import ThemeToggle from "@/components/ThemeToggle";
 import { SiteName } from "@/components/SiteName";
 
@@ -48,6 +55,7 @@ type QuotaData = {
 
 const nf = new Intl.NumberFormat("id-ID");
 const compact = (n: number) => new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 2 }).format(n);
+const rupiah = (n: number) => `Rp${nf.format(n)}`;
 
 const clock = (iso?: string | null) => {
   if (!iso) return "—";
@@ -63,6 +71,13 @@ const statusTone = (s?: string) =>
     : s === "exceeded"
       ? "bg-crimson/10 text-crimson-400"
       : "bg-amber-500/10 text-amber-500";
+
+const payStatusTone = (s: string) =>
+  s === "paid"
+    ? "bg-emerald-500/10 text-emerald-400"
+    : s === "pending"
+      ? "bg-amber-500/10 text-amber-500"
+      : "bg-slate-500/10 text-slate-400";
 
 const gradeTone = (g: string) =>
   g === "A"
@@ -115,11 +130,43 @@ export default function QuotaDashboardClient({ token, siteName }: { token: strin
   const [pinBusy, setPinBusy] = useState(false);
   const [pinError, setPinError] = useState<string | null>(null);
   const [showKey, setShowKey] = useState(false);
-  const [tab, setTab] = useState<"kuota" | "model" | "usage" | "tutorial">("kuota");
+  const [tab, setTab] = useState<"kuota" | "topup" | "model" | "usage" | "tutorial">("kuota");
   const [modelSearch, setModelSearch] = useState("");
   const [modelFilter, setModelFilter] = useState<"all" | "aktif" | "oos">("all");
   const [busy, setBusy] = useState(false);
   const [origin, setOrigin] = useState("");
+  const [products, setProducts] = useState<
+    { id: string; name: string; source: "bandel" | "gateway"; tokens: number; validDays: number; price: number; soldOut?: boolean }[]
+  >([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [resellerQuota, setResellerQuota] = useState<number | null>(null);
+  const [contact, setContact] = useState<{ telegram: string | null; whatsapp: string | null }>({ telegram: null, whatsapp: null });
+  const [buyTarget, setBuyTarget] = useState<{ id: string; name: string; tokens: number; price: number } | null>(null);
+  const [order, setOrder] = useState<{
+    invoice: string;
+    amount: number;
+    uniqueCode: number;
+    qrisPayload: string;
+    expiresAt: string;
+    productName: string;
+  } | null>(null);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  const [ordering, setOrdering] = useState(false);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
+  const [payStatus, setPayStatus] = useState<"pending" | "paid" | "expired">("pending");
+  const [countdown, setCountdown] = useState("");
+
+  // riwayat topup
+  const [history, setHistory] = useState<{
+    orders: { invoice: string; productName: string; amount: number; tokens: number; status: string; createdAt: string; expiresAt: string; qrisPayload: string; uniqueCode: number }[];
+    total: number;
+    page: number;
+    totalPages: number;
+  } | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
+  const [maxPending, setMaxPending] = useState(3);
 
   const storageKey = `quota_at_${token}`;
 
@@ -175,6 +222,97 @@ export default function QuotaDashboardClient({ token, siteName }: { token: strin
     if (unlocked && !data) loadData();
   }, [unlocked, data, loadData]);
 
+  useEffect(() => {
+    if (tab !== "topup" || productsLoaded) return;
+    (async () => {
+      const res = await fetch(`/api/member/products?token=${encodeURIComponent(token)}`, { cache: "no-store" }).catch(() => null);
+      if (!res?.ok) return;
+      const body = await res.json().catch(() => null);
+      if (body?.products) setProducts(body.products);
+      if (body?.contact) setContact(body.contact);
+      if (typeof body?.resellerQuota === "number") setResellerQuota(body.resellerQuota);
+      if (typeof body?.pendingCount === "number") setPendingCount(body.pendingCount);
+      if (typeof body?.maxPendingOrders === "number") setMaxPending(body.maxPendingOrders);
+      setProductsLoaded(true);
+    })();
+  }, [tab, productsLoaded, token]);
+
+  const loadHistory = useCallback(
+    async (page = 1) => {
+      const res = await fetch(`/api/member/quota/${token}/orders?page=${page}&limit=5`, {
+        cache: "no-store",
+      }).catch(() => null);
+      if (!res?.ok) return;
+      const body = await res.json().catch(() => null);
+      if (body?.orders) {
+        setHistory(body);
+        setHistoryLoaded(true);
+        if (typeof body.pendingCount === "number") setPendingCount(body.pendingCount);
+      }
+    },
+    [token]
+  );
+
+  useEffect(() => {
+    if (tab === "topup" && unlocked) loadHistory(1);
+  }, [tab, unlocked, loadHistory]);
+
+  const resumeOrder = (o: { invoice: string; productName: string; amount: number; tokens: number; status: string; createdAt: string; expiresAt: string; qrisPayload: string; uniqueCode: number }) => {
+    setBuyTarget({ id: "", name: o.productName, tokens: o.tokens, price: o.amount });
+    setOrder({
+      invoice: o.invoice,
+      amount: o.amount,
+      uniqueCode: o.uniqueCode,
+      qrisPayload: o.qrisPayload,
+      expiresAt: o.expiresAt,
+      productName: o.productName,
+    });
+    setPayStatus("pending");
+    setOrderError(null);
+
+    QRCode.toDataURL(o.qrisPayload, { width: 400, margin: 2 })
+      .then(setQrUrl)
+      .catch(() => setQrUrl(null));
+
+    const expires = new Date(o.expiresAt);
+    const tick = () => {
+      const diff = Math.max(0, expires.getTime() - Date.now());
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+      if (diff <= 0 && orderTimer.current) clearInterval(orderTimer.current);
+    };
+    tick();
+    if (orderTimer.current) clearInterval(orderTimer.current);
+    orderTimer.current = setInterval(tick, 1000);
+
+    const poll = async () => {
+      try {
+        const r = await fetch(`/api/payment/status/${o.invoice}`, { cache: "no-store" });
+        const st = await r.json();
+        if (st?.ok && (st.status === "paid" || st.status === "expired")) {
+          setPayStatus(st.status);
+          if (st.status === "paid" && data) loadData();
+          loadHistory(history?.page ?? 1);
+          if (orderTimer.current) clearInterval(orderTimer.current);
+          if (orderPoller.current) clearInterval(orderPoller.current);
+        }
+      } catch {}
+    };
+    if (orderPoller.current) clearInterval(orderPoller.current);
+    orderPoller.current = setInterval(poll, 3000);
+  };
+
+  const cancelHistoryOrder = async (invoice: string) => {
+    setCancelling(invoice);
+    try {
+      await fetch(`/api/payment/cancel/${invoice}`, { method: "POST" }).catch(() => null);
+      await loadHistory(history?.page ?? 1);
+    } finally {
+      setCancelling(null);
+    }
+  };
+
   const submitPin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!/^\d{6}$/.test(pin)) {
@@ -208,6 +346,83 @@ export default function QuotaDashboardClient({ token, siteName }: { token: strin
     setUnlocked(false);
     setData(null);
     setShowKey(false);
+  };
+
+  const clearOrder = () => {
+    setOrder(null);
+    setQrUrl(null);
+    setOrderError(null);
+    setPayStatus("pending");
+    setCountdown("");
+    setBuyTarget(null);
+    if (orderTimer.current) clearInterval(orderTimer.current);
+    if (orderPoller.current) clearInterval(orderPoller.current);
+    orderTimer.current = null;
+    orderPoller.current = null;
+  };
+
+  const orderTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const orderPoller = useRef<ReturnType<typeof setInterval> | null>(null);
+  useEffect(() => () => {
+    if (orderTimer.current) clearInterval(orderTimer.current);
+    if (orderPoller.current) clearInterval(orderPoller.current);
+  }, []);
+
+  const startOrder = async () => {
+    if (!buyTarget) return;
+    setOrdering(true);
+    setOrderError(null);
+    try {
+      const res = await fetch(`/api/member/quota/${token}/buy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productId: buyTarget.id }),
+      }).catch(() => null);
+      if (!res) throw new Error("Tidak dapat menghubungi server.");
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body?.error ?? `Gagal (HTTP ${res.status}).`);
+
+      setOrder(body);
+      setPayStatus("pending");
+
+      try {
+        const url = await QRCode.toDataURL(body.qrisPayload, { width: 400, margin: 2 });
+        setQrUrl(url);
+      } catch {
+        setQrUrl(null);
+      }
+
+      const expires = new Date(body.expiresAt);
+      const tick = () => {
+        const diff = Math.max(0, expires.getTime() - Date.now());
+        const m = Math.floor(diff / 60000);
+        const s = Math.floor((diff % 60000) / 1000);
+        setCountdown(`${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`);
+        if (diff <= 0 && orderTimer.current) clearInterval(orderTimer.current);
+      };
+      tick();
+      if (orderTimer.current) clearInterval(orderTimer.current);
+      orderTimer.current = setInterval(tick, 1000);
+
+      const poll = async () => {
+        try {
+          const r = await fetch(`/api/payment/status/${body.invoice}`, { cache: "no-store" });
+          const st = await r.json();
+          if (st?.ok && (st.status === "paid" || st.status === "expired")) {
+            setPayStatus(st.status);
+            if (st.status === "paid" && data) loadData();
+            if (orderTimer.current) clearInterval(orderTimer.current);
+            if (orderPoller.current) clearInterval(orderPoller.current);
+          }
+        } catch {}
+      };
+      if (orderPoller.current) clearInterval(orderPoller.current);
+      orderPoller.current = setInterval(poll, 3000);
+    } catch (e) {
+      setOrderError(e instanceof Error ? e.message : "Gagal membuat pesanan.");
+    } finally {
+      setOrdering(false);
+    }
   };
 
   const pct = data && data.maxTokens > 0 ? (data.usage.total_tokens / data.maxTokens) * 100 : 0;
@@ -277,6 +492,7 @@ export default function QuotaDashboardClient({ token, siteName }: { token: strin
             <ul className="flex items-center gap-0.5 overflow-x-auto px-4 sm:px-6 lg:px-8">
               {[
                 { id: "kuota" as const, label: "Kuota", icon: Gauge },
+                { id: "topup" as const, label: "Top Up", icon: ShoppingCart },
                 { id: "model" as const, label: "Model", icon: Boxes },
                 { id: "usage" as const, label: "Usage", icon: BarChart3 },
                 { id: "tutorial" as const, label: "Tutorial", icon: BookOpen },
@@ -528,6 +744,201 @@ export default function QuotaDashboardClient({ token, siteName }: { token: strin
                   </div>
                 )}
 
+                {tab === "topup" && (
+                  <div className="space-y-6">
+                    <div>
+                      <h2 className="font-display text-lg font-semibold tracking-tight">Tambah kuota</h2>
+                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                        Pilih paket di bawah — bayar via QRIS (semua e-wallet &amp; m-banking), kuota otomatis masuk
+                        setelah pembayaran terdeteksi.
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {resellerQuota !== null && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-900/[.04] px-3 py-1 font-mono text-[10px] text-slate-500 dark:bg-white/[.04] dark:text-slate-400">
+                            stok server: {compact(resellerQuota)} token
+                          </span>
+                        )}
+                        {pendingCount >= maxPending && (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-crimson/10 px-3 py-1 text-[10px] font-medium text-crimson-400">
+                            <AlertTriangle className="h-3 w-3" />
+                            selesaikan {pendingCount} pesanan pending dulu
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {!productsLoaded ? (
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {[0, 1, 2].map((i) => (
+                          <div key={i} className="glass p-5">
+                            <div className="h-3.5 w-24 animate-pulse rounded bg-slate-900/10 dark:bg-white/10" />
+                            <div className="mt-4 h-8 w-28 animate-pulse rounded bg-slate-900/10 dark:bg-white/10" />
+                            <div className="mt-3 h-3 w-20 animate-pulse rounded bg-slate-900/10 dark:bg-white/10" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : products.length === 0 ? (
+                      <p className="glass p-8 text-center text-sm text-slate-500 dark:text-slate-400">
+                        Belum ada paket tersedia saat ini. Coba lagi nanti atau hubungi admin lewat halaman{" "}
+                        <a href="/contact" className="font-medium text-crimson-500 hover:underline">
+                          Kontak
+                        </a>
+                        .
+                      </p>
+                    ) : (
+                      <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {products.map((p) => (
+                          <li key={p.id} className={`glass flex flex-col p-5 ${p.soldOut ? "opacity-60" : ""}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="min-w-0 text-sm font-semibold">{p.name}</p>
+                              {p.soldOut ? (
+                                <span className="shrink-0 rounded-full bg-crimson/10 px-2 py-0.5 font-mono text-[10px] uppercase text-crimson-400">
+                                  stok habis
+                                </span>
+                              ) : (
+                                <span
+                                  className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase ${
+                                    p.source === "bandel" ? "bg-sky-500/10 text-sky-400" : "bg-emerald-500/10 text-emerald-400"
+                                  }`}
+                                >
+                                  {p.source}
+                                </span>
+                              )}
+                            </div>
+                            <p className="mt-3 font-display text-2xl font-semibold tracking-tight">{compact(p.tokens)}</p>
+                            <p className="mt-1 font-mono text-[10px] text-slate-400">
+                              token · masa aktif {p.validDays} hari
+                            </p>
+                            <div className="mt-4 flex items-center justify-between gap-2 border-t border-slate-900/10 pt-4 dark:border-white/10">
+                              <span className="font-display text-base font-semibold text-crimson-500">{rupiah(p.price)}</span>
+                              <button
+                                type="button"
+                                disabled={p.soldOut || pendingCount >= maxPending}
+                                onClick={() => {
+                                  setOrder(null);
+                                  setQrUrl(null);
+                                  setOrderError(null);
+                                  setPayStatus("pending");
+                                  setBuyTarget({ id: p.id, name: p.name, tokens: p.tokens, price: p.price });
+                                }}
+                                title={pendingCount >= maxPending ? "Bayar / batalkan pesanan pending dulu" : undefined}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-crimson px-4 py-2 text-xs font-semibold text-offwhite transition hover:bg-crimson-600 disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <PlusCircle className="h-3.5 w-3.5" />
+                                {p.soldOut ? "Habis" : pendingCount >= maxPending ? "Terkunci" : "Beli"}
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <section className="glass overflow-hidden">
+                      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-900/10 px-5 py-4 dark:border-white/10">
+                        <div className="flex items-center gap-2 text-crimson-500">
+                          <Receipt className="h-4 w-4" />
+                          <h3 className="font-display text-sm font-semibold uppercase tracking-[0.1em]">Riwayat top up</h3>
+                        </div>
+                        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-400">
+                          {history ? `${history.total} transaksi` : "…"}
+                        </span>
+                      </header>
+
+                      {!historyLoaded ? (
+                        <div className="space-y-2 p-5">
+                          {[0, 1, 2].map((i) => (
+                            <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-900/[.06] dark:bg-white/[.06]" />
+                          ))}
+                        </div>
+                      ) : !history || history.orders.length === 0 ? (
+                        <p className="py-10 text-center text-xs text-slate-400">Belum ada transaksi.</p>
+                      ) : (
+                        <>
+                          <ul className="divide-y divide-slate-900/10 dark:divide-white/10">
+                            {history.orders.map((o) => (
+                              <li key={o.invoice} className="flex flex-wrap items-center gap-3 px-5 py-3.5">
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <p className="text-xs font-semibold">{o.productName}</p>
+                                    <span
+                                      className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase ${payStatusTone(o.status)}`}
+                                    >
+                                      {o.status === "paid" ? "berhasil" : o.status === "pending" ? "menunggu" : o.status}
+                                    </span>
+                                  </div>
+                                  <p className="mt-0.5 font-mono text-[10px] text-slate-400">
+                                    {o.invoice} · {rupiah(o.amount)} · {compact(o.tokens)} token ·{" "}
+                                    {new Date(o.createdAt).toLocaleString("id-ID", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                </div>
+
+                                {o.status === "pending" && new Date(o.expiresAt).getTime() > Date.now() && (
+                                  <div className="flex shrink-0 gap-1.5">
+                                    <button
+                                      type="button"
+                                      onClick={() => resumeOrder(o)}
+                                      className="inline-flex items-center gap-1 rounded-lg bg-crimson px-3 py-1.5 text-xs font-semibold text-offwhite transition hover:bg-crimson-600"
+                                    >
+                                      <QrCode className="h-3.5 w-3.5" />
+                                      Bayar
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => cancelHistoryOrder(o.invoice)}
+                                      disabled={cancelling === o.invoice}
+                                      className="inline-flex items-center gap-1 rounded-lg border border-slate-900/15 px-3 py-1.5 text-xs font-medium text-slate-500 transition hover:border-crimson-500 hover:text-crimson-500 disabled:opacity-50 dark:border-white/15 dark:text-slate-400"
+                                    >
+                                      {cancelling === o.invoice ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      ) : (
+                                        <XCircle className="h-3.5 w-3.5" />
+                                      )}
+                                      Batal
+                                    </button>
+                                  </div>
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+
+                          {history.totalPages > 1 && (
+                            <div className="flex items-center justify-between border-t border-slate-900/10 px-5 py-3 dark:border-white/10">
+                              <span className="font-mono text-[10px] text-slate-400">
+                                hal. {history.page} / {history.totalPages}
+                              </span>
+                              <div className="flex gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => loadHistory(history.page - 1)}
+                                  disabled={history.page <= 1}
+                                  className="grid h-8 w-8 place-items-center rounded-lg border border-slate-900/15 transition hover:border-crimson-500 hover:text-crimson-500 disabled:opacity-40 dark:border-white/15"
+                                  aria-label="Halaman sebelumnya"
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => loadHistory(history.page + 1)}
+                                  disabled={history.page >= history.totalPages}
+                                  className="grid h-8 w-8 place-items-center rounded-lg border border-slate-900/15 transition hover:border-crimson-500 hover:text-crimson-500 disabled:opacity-40 dark:border-white/15"
+                                  aria-label="Halaman berikutnya"
+                                >
+                                  <ChevronRight className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </section>
+                  </div>
+                )}
+
                 {tab === "model" && (
                   <section className="glass p-5">
                     <div className="flex flex-wrap items-center gap-2">
@@ -752,6 +1163,127 @@ export default function QuotaDashboardClient({ token, siteName }: { token: strin
                 {tab === "tutorial" && <Tutorial baseUrl={baseUrl} apiKey={showKey && data ? data.key : "sk-..."} />}
               </>
             )}
+          </div>
+        )}
+
+        {buyTarget && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+            <div onClick={clearOrder} className="absolute inset-0" aria-hidden="true" />
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Beli ${buyTarget.name}`}
+              className="relative max-h-[88dvh] w-full max-w-lg overflow-y-auto overscroll-contain rounded-2xl border border-slate-900/10 bg-offwhite p-5 shadow-2xl dark:border-white/10 dark:bg-slateDeep-800"
+            >
+              <div className="flex items-start gap-3">
+                <div className="min-w-0 flex-1">
+                  <h2 className="font-display text-base font-semibold tracking-tight">
+                    {payStatus === "paid" ? "Pembayaran berhasil" : order ? "Scan & bayar" : "Beli paket"}
+                  </h2>
+                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
+                    {payStatus === "paid"
+                      ? "Kuota telah ditambahkan ke akunmu."
+                      : order
+                        ? "Scan QRIS dengan aplikasi apa pun — bayar sesuai nominal."
+                        : "Konfirmasi pesanan kamu."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearOrder}
+                  aria-label="Tutup"
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-slate-900/10 transition hover:border-crimson-500 hover:text-crimson-500 dark:border-white/10"
+                >
+                  <XCircle className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {payStatus === "paid" ? (
+                  <>
+                    <p className="flex items-center gap-2 rounded-xl bg-emerald-500/10 px-3.5 py-3 text-xs text-emerald-400">
+                      <Check className="h-4 w-4 shrink-0" />
+                      {order?.productName ?? buyTarget.name} — {compact(buyTarget.tokens)} token masuk.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={clearOrder}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-crimson px-5 py-3 text-sm font-semibold text-offwhite transition hover:bg-crimson-600"
+                    >
+                      Selesai
+                    </button>
+                  </>
+                ) : !order ? (
+                  <>
+                    <div className="rounded-xl bg-slate-900/[.04] p-3.5 dark:bg-white/[.04]">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-400">Paket</p>
+                      <p className="mt-1 text-sm font-semibold">{buyTarget.name}</p>
+                      <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
+                        {compact(buyTarget.tokens)} token · {rupiah(buyTarget.price)}
+                      </p>
+                    </div>
+
+                    {data && (
+                      <div className="rounded-xl bg-slate-900/[.04] p-3.5 dark:bg-white/[.04]">
+                        <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-400">Akun</p>
+                        <p className="mt-1 text-sm font-semibold">{data.name}</p>
+                        <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
+                          member #{data.id} · sisa {compact(remaining)} token
+                        </p>
+                      </div>
+                    )}
+
+                    {orderError && (
+                      <p role="alert" className="flex items-start gap-2 rounded-xl border border-crimson/40 bg-crimson/10 px-3 py-2.5 text-xs text-crimson-400">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        {orderError}
+                      </p>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={startOrder}
+                      disabled={ordering}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-crimson px-5 py-3 text-sm font-semibold text-offwhite transition hover:bg-crimson-600 disabled:opacity-50"
+                    >
+                      {ordering ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingCart className="h-4 w-4" />}
+                      {ordering ? "Membuat pesanan…" : `Buat pesanan · ${rupiah(buyTarget.price)}`}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="rounded-xl bg-slate-900/[.04] p-3.5 text-center dark:bg-white/[.04]">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-400">Nominal pembayaran</p>
+                      <p className="mt-1 font-display text-3xl font-semibold tracking-tight">{rupiah(order.amount)}</p>
+                      {order.uniqueCode > 0 && (
+                        <p className="mt-1 font-mono text-[10px] text-slate-400">
+                          termasuk kode unik {order.uniqueCode} — bayar persis sesuai nominal
+                        </p>
+                      )}
+                      <p className="mt-2 font-mono text-[10px] text-slate-400">
+                        {order.invoice} · berlaku {countdown || "—"}
+                      </p>
+                    </div>
+
+                    {qrUrl ? (
+                      <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-2xl border border-slate-900/10 bg-white p-3 dark:border-white/10">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={qrUrl} alt="QRIS pembayaran" className="h-auto w-full" />
+                      </div>
+                    ) : (
+                      <p className="rounded-xl border border-crimson/40 bg-crimson/10 px-3 py-2.5 text-center font-mono text-[11px] text-crimson-400 break-all">
+                        {order.qrisPayload}
+                      </p>
+                    )}
+
+                    <p className="flex items-center justify-center gap-2 text-center text-xs text-slate-500 dark:text-slate-400">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-crimson-500" />
+                      Menunggu pembayaran… status diperbarui otomatis.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
           </div>
         )}
       </main>

@@ -1,12 +1,12 @@
 import { notFound } from "next/navigation";
-import { navFlat } from "@/lib/nav";
+import { navAll } from "@/lib/nav";
 import { ChartPanel } from "@/components/admin/Panels";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminSectionPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const item = navFlat.find((n) => n.href === `/admin/${slug}`);
+  const item = navAll.find((n) => n.href === `/admin/${slug}`);
   if (!item) notFound();
 
   return (

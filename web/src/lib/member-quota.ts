@@ -99,6 +99,46 @@ export async function fetchResellerKeys(): Promise<{ status: number; keys: Resel
   return { status: 200, keys: keys as ResellerKeyRow[], error: null };
 }
 
+/** Kuota token reseller saat ini (untuk cek stok produk). */
+export async function getResellerQuotaTokens(): Promise<number | null> {
+  const r = await bandelPublic(`/api/public/reseller/keys?token=${RESELLER_SECRET()}`);
+  if (!r.ok || !r.data) return null;
+  const q = (r.data as { resellerQuota?: unknown }).resellerQuota;
+  return typeof q === "number" ? q : null;
+}
+
+/** Tambah kuota member bandel via secretToken reseller. */
+export async function addCustomerQuotaByToken(
+  memberSecretToken: string,
+  addTokens: number,
+  validDays: number
+): Promise<{ ok: boolean; memberName?: string | null; remainingQuota?: number | null; error?: string }> {
+  const keys = await fetchResellerKeys();
+  if (!keys.keys) return { ok: false, error: keys.error ?? "Gagal mengambil daftar member." };
+
+  const member = keys.keys.find((k) => k.secretToken === memberSecretToken);
+  if (!member) return { ok: false, error: "Member tidak ditemukan." };
+
+  const r = await bandelPublic("/api/public/reseller/add-quota", {
+    method: "POST",
+    body: JSON.stringify({
+      secretToken: RESELLER_SECRET(),
+      targetKeyId: member.id,
+      addTokens,
+      validDays,
+    }),
+  });
+
+  if (!r.ok) return { ok: false, error: r.error ?? "Gagal menambah kuota." };
+
+  const d = r.data as { remainingQuota?: unknown };
+  return {
+    ok: true,
+    memberName: member.name ?? null,
+    remainingQuota: typeof d.remainingQuota === "number" ? d.remainingQuota : null,
+  };
+}
+
 export type CheckQuotaResult = {
   name: string;
   status: string;

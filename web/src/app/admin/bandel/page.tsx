@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Globe, MessageSquareHeart } from "lucide-react";
 import BandelDomainForm from "@/components/admin/BandelDomainForm";
+import CollapseSection from "@/components/admin/CollapseSection";
 import ContactSettingsForm from "@/components/admin/ContactSettingsForm";
 import CustomerKeys from "@/components/admin/CustomerKeys";
 import ModelsList from "@/components/admin/ModelsList";
@@ -40,25 +40,13 @@ export default async function BandelPage() {
 
       <ResellerBalance initial={quota.data} />
 
-      <section className="glass p-5">
-        <header className="flex items-center gap-2 text-crimson-500">
-          <MessageSquareHeart className="h-4 w-4" />
-          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.1em]">Kontak Member</h2>
-        </header>
-        <div className="mt-4">
-          <ContactSettingsForm initial={contact} />
-        </div>
-      </section>
+      <CollapseSection icon="MessageSquareHeart" title="Kontak Member" hint={contact.telegram ? `@${contact.telegram}` : "belum diset"}>
+        <ContactSettingsForm initial={contact} />
+      </CollapseSection>
 
-      <section className="glass p-5">
-        <header className="flex items-center gap-2 text-crimson-500">
-          <Globe className="h-4 w-4" />
-          <h2 className="font-display text-sm font-semibold uppercase tracking-[0.1em]">Domain Proxy</h2>
-        </header>
-        <div className="mt-4">
-          <BandelDomainForm initial={domain} />
-        </div>
-      </section>
+      <CollapseSection icon="Globe" title="Domain Proxy" hint={domain}>
+        <BandelDomainForm initial={domain} />
+      </CollapseSection>
 
       <ModelsList initial={models.data?.data ?? []} />
       <CustomerKeys initial={keys.data} tokenById={tokenById} />
