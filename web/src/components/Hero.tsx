@@ -5,9 +5,9 @@ import { ArrowRight, KeyRound, Sparkles } from "lucide-react";
 import AiNodeVisual from "./AiNodeVisual";
 
 const stats = [
-  { k: "42ms", v: "p50 latency" },
-  { k: "40+", v: "model LLM" },
-  { k: "8.2B", v: "token / hari" },
+  { k: "5M+", v: "token mulai" },
+  { k: "Gro­k", v: "model unggulan" },
+  { k: "QRIS", v: "pembayaran" },
 ];
 
 export default function Hero() {
@@ -24,19 +24,19 @@ export default function Hero() {
           className="min-w-0"
         >
           <span className="inline-flex items-center gap-2 rounded-full border border-crimson/30 bg-crimson/10 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.12em] text-crimson-500">
-            <Sparkles className="h-3.5 w-3.5" /> Inference Grid v4
+            <Sparkles className="h-3.5 w-3.5" /> Token AI Simpel &amp; Murah
           </span>
 
           <h1 className="mt-6 font-display text-4xl font-semibold leading-[1.12] tracking-tighter sm:text-5xl lg:text-6xl">
-            Token LLM tanpa
+            Token AI untuk
             <span className="block bg-gradient-to-r from-crimson via-crimson-400 to-crimson-600 bg-clip-text text-transparent">
-              batas latency.
+              semua kebutuhanmu.
             </span>
           </h1>
 
           <p className="mt-5 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg dark:text-slate-300">
-            Satu API key untuk 40+ model. Routing otomatis ke node tercepat, billing per token, dan
-            SDK OpenAI-compatible yang langsung jalan tanpa refactor.
+            Beli paket token sekali bayar, langsung pakai. Satu API key untuk model Grok dan
+            lainnya, format OpenAI-compatible — tinggal ganti base URL, tanpa refactor.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -44,13 +44,13 @@ export default function Hero() {
               href="#pricing"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-crimson px-6 py-3.5 text-sm font-semibold text-offwhite shadow-neon transition hover:bg-crimson-600"
             >
-              <KeyRound className="h-4 w-4" /> Get API Key
+              <KeyRound className="h-4 w-4" /> Beli Token Sekarang
             </a>
             <a
               href="#pricing"
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-900/15 px-6 py-3.5 text-sm font-semibold transition hover:border-crimson-500 hover:text-crimson-500 dark:border-white/15"
             >
-              View Pricing <ArrowRight className="h-4 w-4" />
+              Lihat Harga Paket <ArrowRight className="h-4 w-4" />
             </a>
           </div>
 

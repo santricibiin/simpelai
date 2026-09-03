@@ -1,10 +1,10 @@
 export type Feature = { icon: string; title: string; desc: string; metric: string };
 
 export const features: Feature[] = [
-  { icon: "Zap", title: "Low Latency", desc: "Edge routing dengan p95 di bawah 180ms untuk streaming token pertama.", metric: "42ms TTFB" },
-  { icon: "ShieldCheck", title: "99.9% Uptime", desc: "Multi-region failover otomatis, tanpa cold start pada model aktif.", metric: "99.97% 90d" },
-  { icon: "Boxes", title: "Multi-LLM Support", desc: "Satu endpoint OpenAI-compatible untuk 40+ model open & proprietary.", metric: "40+ model" },
-  { icon: "Gauge", title: "High Rate Limit", desc: "Burst hingga 10k RPM dengan quota adaptif per API key.", metric: "10k RPM" },
+  { icon: "Zap", title: "Streaming Cepat", desc: "Respons model lancar untuk chatbot, automation, dan proyek AI kamu.", metric: "Realtime" },
+  { icon: "ShieldCheck", title: "Stok Selalu Tersedia", desc: "Paket token dikirim otomatis setelah pembayaran QRIS terkonfirmasi.", metric: "Delivery Instan" },
+  { icon: "Boxes", title: "Model Pilihan", desc: "Grok dan model populer lainnya, satu API key untuk semuanya.", metric: "Grok & more" },
+  { icon: "Gauge", title: "Kuota Transparan", desc: "Pemakaian token tercatat per request — bisa dipantau kapan saja.", metric: "Live Tracking" },
 ];
 
 export type Plan = {
@@ -19,30 +19,34 @@ export type Plan = {
 
 export const plans: Plan[] = [
   {
-    name: "Pay-as-you-go",
-    price: "$0.40",
-    unit: "/ 1M token",
-    tagline: "Bayar hanya yang terpakai, tanpa komitmen.",
-    perks: ["Semua model publik", "1k RPM", "Log 7 hari", "Community support"],
-    cta: "Mulai Gratis",
+    name: "Paket 5 Juta",
+    price: "Rp10.000",
+    unit: "",
+    tagline: "Cocok buat coba-coba dan proyek kecil.",
+    perks: ["5.000.000 token", "Semua model aktif", "Dashboard pemakaian", "Support via WhatsApp/Telegram"],
+    cta: "Pesan Paket",
   },
   {
-    name: "Developer",
-    price: "$49",
-    unit: "/ bulan",
-    tagline: "120M token termasuk, ideal untuk produksi kecil.",
-    perks: ["120M token bundled", "5k RPM", "Log 30 hari + tracing", "Prioritas antrean", "Email support 24h"],
-    cta: "Get API Key",
+    name: "Paket 200 Juta",
+    price: "Rp150.000",
+    unit: "",
+    tagline: "Paling laris — buat penggunaan harian rutin.",
+    perks: ["200.000.000 token", "Semua model aktif", "Dashboard pemakaian", "Prioritas support"],
+    cta: "Pesan Paket",
     featured: true,
   },
   {
-    name: "Enterprise",
-    price: "Custom",
-    unit: "/ kontrak",
-    tagline: "Dedicated capacity dan SLA tertulis.",
-    perks: ["Dedicated GPU pool", "Unlimited RPM", "SSO + audit log", "VPC peering", "SLA 99.99% & TAM"],
-    cta: "Hubungi Sales",
+    name: "Paket 10 Miliar",
+    price: "Rp5.000.000",
+    unit: "",
+    tagline: "Untuk tim dan produk dengan traffic besar.",
+    perks: ["10.000.000.000 token", "Semua model aktif", "Dashboard pemakaian", "Support prioritas tertinggi"],
+    cta: "Pesan Paket",
   },
 ];
 
-export const models = ["gpt-4o-mini", "claude-3.7-sonnet", "llama-3.3-70b", "qwen2.5-72b", "mistral-large"];
+export const models = ["gcli/grok-4.6", "gcli/grok-4.6-xhigh"];
+
+export const extras = [
+  { name: "Netflix Premium 1 Bulan", desc: "Akun streaming legal, garansi full 1 bulan.", price: "Rp25.000" },
+];

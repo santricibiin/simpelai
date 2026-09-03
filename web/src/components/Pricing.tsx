@@ -11,9 +11,9 @@ export default function Pricing() {
 
       <div className="container-x relative">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Paket Token API</h2>
+          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">Paket Token</h2>
           <p className="mt-4 text-slate-600 dark:text-slate-300">
-            Tanpa biaya idle. Upgrade dan downgrade kapan pun langsung dari dashboard.
+            Pilih sesuai kebutuhan, bayar via QRIS, API key langsung aktif. Page order menyusul.
           </p>
         </div>
 

@@ -11,10 +11,10 @@ export default function Features() {
     <section id="features" className="container-x scroll-mt-20 py-16 sm:py-20">
       <div className="max-w-2xl">
         <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
-          Infrastruktur yang <span className="text-crimson-500">tidak terasa</span>
+          Beli token, <span className="text-crimson-500">langsung jalan</span>
         </h2>
         <p className="mt-4 text-slate-600 dark:text-slate-300">
-          Semua yang biasanya butuh tim platform sendiri, sudah jadi default di setiap API key.
+          Tanpa langkah ribet — bayar QRIS, token masuk, integrasi API jalan dalam hitungan menit.
         </p>
       </div>
 
