@@ -356,11 +356,13 @@ cmd_status() {
   pm2 ls 2>/dev/null || die "PM2 belum jalan"
   echo
   say "Endpoint check"
-  local api web
+  local WEB_PORT api web
+  WEB_PORT="$(ss -tlnp 2>/dev/null | grep -oP '(?<=:)\d+(?=.*)' >/dev/null; ss -tlnp | awk '/next-server/{match($0,/:(300[0-9])/,m); print m[1]; exit}')"
+  WEB_PORT="${WEB_PORT:-3000}"
   api="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080/api/status || echo down)"
-  web="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:3000/ || echo down)"
+  web="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:$WEB_PORT/ || echo down)"
   [[ $api == 200 ]] && ok "API  :8080 → $api" || warn "API  :8080 → $api"
-  [[ $web == 200 || $web == 307 ]] && ok "Web  :3000 → $web" || warn "Web  :3000 → $web"
+  [[ $web == 200 || $web == 307 ]] && ok "Web  :$WEB_PORT → $web" || warn "Web  :$WEB_PORT → $web"
   echo
   say "Disk & memori"
   df -h / | tail -1 | awk '{printf "  disk: %s used (%s free)\n",$3,$4}'
