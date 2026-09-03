@@ -18,6 +18,7 @@ const MAX_BODY_BYTES: usize = 2 * 1024 * 1024;
 pub struct Candidate {
     pub id: u64,
     pub base_url: String,
+    pub multiplier: f64,
 }
 
 fn err(status: StatusCode, message: &str) -> Response {
@@ -30,7 +31,7 @@ fn err(status: StatusCode, message: &str) -> Response {
 
 async fn candidates(state: &AppState, model: &str) -> Result<Vec<Candidate>, sqlx::Error> {
     sqlx::query_as::<_, Candidate>(
-        "SELECT p.id, p.base_url FROM providers p \
+        "SELECT p.id, p.base_url, CAST(m.multiplier AS DOUBLE) AS multiplier FROM providers p \
          JOIN provider_models m ON m.provider_id = p.id \
          WHERE p.enabled = 1 AND m.enabled = 1 AND m.model = ? \
          ORDER BY p.priority, p.id LIMIT 5",
@@ -144,6 +145,7 @@ pub async fn chat_completions(
                     completion_tokens: 0,
                     latency_ms: started.elapsed().as_millis() as u32,
                     status_code: status.as_u16(),
+                    multiplier: candidate.multiplier,
                 })
                 .await;
 
@@ -171,6 +173,7 @@ pub async fn chat_completions(
                     completion_tokens: 0,
                     latency_ms: started.elapsed().as_millis() as u32,
                     status_code: 200,
+                    multiplier: candidate.multiplier,
                 },
             );
 
@@ -203,6 +206,7 @@ pub async fn chat_completions(
                 completion_tokens: completion,
                 latency_ms: started.elapsed().as_millis() as u32,
                 status_code: 200,
+                multiplier: candidate.multiplier,
             })
             .await;
 
@@ -224,6 +228,7 @@ pub async fn chat_completions(
             completion_tokens: 0,
             latency_ms: 0,
             status_code: 503,
+            multiplier: 1.0,
         })
         .await;
 

@@ -14,6 +14,8 @@ pub struct UsageEvent {
     pub completion_tokens: u32,
     pub latency_ms: u32,
     pub status_code: u16,
+    /// Bobot biaya per model; 1.0 = flat. Diambil dari provider_models.multiplier.
+    pub multiplier: f64,
 }
 
 #[derive(Clone)]
@@ -59,9 +61,9 @@ impl UsageRecorder {
 
         let mut sql = String::from(
             "INSERT INTO usage_events \
-             (api_key_id, provider_id, model, prompt_tokens, completion_tokens, latency_ms, status_code) VALUES ",
+             (api_key_id, provider_id, model, prompt_tokens, completion_tokens, latency_ms, status_code, multiplier) VALUES ",
         );
-        sql.push_str(&vec!["(?, ?, ?, ?, ?, ?, ?)"; batch.len()].join(", "));
+        sql.push_str(&vec!["(?, ?, ?, ?, ?, ?, ?, ?)"; batch.len()].join(", "));
 
         let mut query = sqlx::query(&sql);
         for e in &batch {
@@ -72,25 +74,30 @@ impl UsageRecorder {
                 .bind(e.prompt_tokens)
                 .bind(e.completion_tokens)
                 .bind(e.latency_ms)
-                .bind(e.status_code);
+                .bind(e.status_code)
+                .bind(e.multiplier);
         }
         query.execute(pool).await?;
 
-        let mut per_key: HashMap<u64, (u64, u64)> = HashMap::new();
+        // tokens_used = penjumlahan ceil((prompt+completion) * multiplier) per event,
+        // dibulatkan ke atas agar admin tidak rugi pecahan token.
+        let mut per_key: HashMap<u64, (u64, u64, u64)> = HashMap::new();
         for e in &batch {
             if let Some(id) = e.api_key_id {
                 let slot = per_key.entry(id).or_default();
                 slot.0 += e.prompt_tokens as u64;
                 slot.1 += e.completion_tokens as u64;
+                slot.2 += ((e.prompt_tokens as u64 + e.completion_tokens as u64) as f64 * e.multiplier)
+                    .ceil() as u64;
             }
         }
 
-        for (key_id, (tin, tout)) in per_key {
+        for (key_id, (tin, tout, weighted)) in per_key {
             sqlx::query(
                 "UPDATE api_keys SET tokens_used = tokens_used + ?, tokens_in = tokens_in + ?, \
                  tokens_out = tokens_out + ?, last_used_at = NOW() WHERE id = ?",
             )
-            .bind(tin + tout)
+            .bind(weighted)
             .bind(tin)
             .bind(tout)
             .bind(key_id)

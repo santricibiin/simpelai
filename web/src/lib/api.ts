@@ -19,7 +19,7 @@ export type Settings = { site_name: string; site_tagline: string };
 
 export type ProviderKey = { id: number; provider_id: number; label: string; key_hint: string; enabled: number };
 
-export type ProviderModel = { id: number; provider_id: number; model: string; enabled: number };
+export type ProviderModel = { id: number; provider_id: number; model: string; enabled: number; multiplier: number };
 
 export type Provider = {
   id: number;

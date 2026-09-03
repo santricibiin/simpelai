@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Search } from "lucide-react";
+import { Loader2, Pencil, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import type { ProviderModel } from "@/lib/api";
@@ -16,9 +16,12 @@ export default function ModelToggleList({
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<number | "bulk" | null>(null);
   const [optimistic, setOptimistic] = useState<Record<number, boolean>>({});
+  const [multOptimistic, setMultOptimistic] = useState<Record<number, string>>({});
+  const [editMult, setEditMult] = useState<{ id: number; value: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const isOn = (m: ProviderModel) => optimistic[m.id] ?? m.enabled === 1;
+  const multOf = (m: ProviderModel) => multOptimistic[m.id] ?? String(m.multiplier);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -46,6 +49,39 @@ export default function ModelToggleList({
     } else {
       router.refresh();
     }
+    setBusy(null);
+  };
+
+  const saveMult = async () => {
+    if (!editMult) return;
+    const m = models.find((x) => x.id === editMult.id);
+    const value = Number(editMult.value);
+    if (!m || !Number.isFinite(value) || value < 0.01 || value > 100) {
+      setError("Multiplier harus angka 0.01–100.");
+      return;
+    }
+    setBusy(editMult.id);
+    setError(null);
+    setMultOptimistic((p) => ({ ...p, [editMult.id]: editMult.value }));
+
+    const res = await fetch(`/api/proxy/api/admin/providers/${providerId}/models/${m.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ multiplier: value }),
+    }).catch(() => null);
+
+    if (!res?.ok) {
+      setMultOptimistic((p) => {
+        const q = { ...p };
+        delete q[editMult.id];
+        return q;
+      });
+      const data = await res?.json().catch(() => null);
+      setError(data?.error ?? "Gagal menyimpan multiplier — coba lagi.");
+    } else {
+      router.refresh();
+    }
+    setEditMult(null);
     setBusy(null);
   };
 
@@ -131,6 +167,45 @@ export default function ModelToggleList({
               >
                 {m.model}
               </span>
+
+              {editMult?.id === m.id ? (
+                <span className="flex shrink-0 items-center gap-1">
+                  <input
+                    autoFocus
+                    type="number"
+                    min={0.01}
+                    max={100}
+                    step={0.01}
+                    value={editMult.value}
+                    onChange={(e) => setEditMult({ id: m.id, value: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") saveMult();
+                      if (e.key === "Escape") setEditMult(null);
+                    }}
+                    aria-label={`Multiplier ${m.model}`}
+                    className="w-16 rounded-lg border border-crimson-500/60 bg-transparent px-1.5 py-0.5 text-right font-mono text-xs outline-none focus:ring-2 focus:ring-crimson-500/30"
+                  />
+                  <button
+                    type="button"
+                    onClick={saveMult}
+                    disabled={busy === m.id}
+                    className="rounded-md bg-crimson px-1.5 py-0.5 font-mono text-[10px] font-semibold text-offwhite disabled:opacity-50"
+                  >
+                    simpan
+                  </button>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditMult({ id: m.id, value: multOf(m) })}
+                  disabled={busy === m.id || busy === "bulk"}
+                  title="Ubah multiplier (biaya per token)"
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-slate-900/15 px-1.5 py-0.5 font-mono text-[10px] text-slate-500 transition hover:border-crimson-500 hover:text-crimson-500 disabled:opacity-50 dark:border-white/15 dark:text-slate-400"
+                >
+                  ×{multOf(m)}
+                  <Pencil className="h-2.5 w-2.5" />
+                </button>
+              )}
 
               {busy === m.id && <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-crimson-500" />}
 

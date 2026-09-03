@@ -38,6 +38,7 @@ pub struct ModelRow {
     pub provider_id: u64,
     pub model: String,
     pub enabled: i8,
+    pub multiplier: f64,
 }
 
 #[derive(Serialize)]
@@ -154,7 +155,7 @@ pub async fn list_providers(
     .await?;
 
     let model_rows = sqlx::query_as::<_, ModelRow>(
-        "SELECT id, provider_id, model, enabled FROM provider_models ORDER BY model",
+        "SELECT id, provider_id, model, enabled, CAST(multiplier AS DOUBLE) AS multiplier FROM provider_models ORDER BY model",
     )
     .fetch_all(&state.pool)
     .await?;
@@ -399,7 +400,9 @@ pub async fn delete_provider(
 
 #[derive(Deserialize)]
 pub struct PatchModelBody {
-    pub enabled: bool,
+    pub enabled: Option<bool>,
+    /// Bobot biaya token model ini; 0.01–100. None = tidak diubah.
+    pub multiplier: Option<f64>,
 }
 
 pub async fn patch_model(
@@ -408,12 +411,26 @@ pub async fn patch_model(
     Path((provider_id, model_id)): Path<(u64, u64)>,
     Json(body): Json<PatchModelBody>,
 ) -> Result<StatusCode, ApiError> {
-    let res = sqlx::query("UPDATE provider_models SET enabled = ? WHERE id = ? AND provider_id = ?")
-        .bind(body.enabled as i8)
-        .bind(model_id)
-        .bind(provider_id)
-        .execute(&state.pool)
-        .await?;
+    if body.enabled.is_none() && body.multiplier.is_none() {
+        return Err(ApiError::new(StatusCode::BAD_REQUEST, "tidak ada perubahan"));
+    }
+
+    if let Some(m) = body.multiplier {
+        if !(0.01..=100.0).contains(&m) {
+            return Err(ApiError::new(StatusCode::BAD_REQUEST, "multiplier harus 0.01–100"));
+        }
+    }
+
+    let res = sqlx::query(
+        "UPDATE provider_models SET enabled = COALESCE(?, enabled), multiplier = COALESCE(?, multiplier) \
+         WHERE id = ? AND provider_id = ?",
+    )
+    .bind(body.enabled.map(|v| v as i8))
+    .bind(body.multiplier)
+    .bind(model_id)
+    .bind(provider_id)
+    .execute(&state.pool)
+    .await?;
 
     if res.rows_affected() == 0 {
         return Err(ApiError::new(StatusCode::NOT_FOUND, "model tidak ditemukan"));
