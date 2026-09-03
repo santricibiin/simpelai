@@ -66,9 +66,13 @@ function qrisStaticToDynamic(qris, amount) {
   while (i + 4 <= s.length) {
     const id = s.slice(i, i + 2);
     const len = parseInt(s.slice(i + 2, i + 4), 10);
-    tags.push({ id, value: s.slice(i + 4, i + 4 + len) });
+    if (!Number.isFinite(len)) throw new Error("QRIS invalid");
+    const value = s.slice(i + 4, i + 4 + len);
+    if (value.length !== len) throw new Error("QRIS invalid");
+    tags.push({ id, value });
     i += 4 + len;
   }
+  if (i !== s.length || !tags.some((t) => t.id === "63")) throw new Error("QRIS invalid");
   let body = tags.filter((t) => t.id !== "63" && !["54", "55", "56", "57"].includes(t.id));
   body = body.map((t) => (t.id === "01" && t.value === "11" ? { id: "01", value: "12" } : t));
   const idx58 = body.findIndex((t) => t.id === "58");
@@ -79,6 +83,16 @@ function qrisStaticToDynamic(qris, amount) {
 }
 
 /* ---------- format helpers ---------- */
+
+// ID kategori stabil dari nama (fnv1a → base36) — tahan nama panjang
+function catKey(name) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
 
 const rupiah = (n) => `Rp${Number(n).toLocaleString("id-ID")}`;
 const num = (n) => Number(n).toLocaleString("id-ID");
@@ -143,10 +157,10 @@ async function getCatalog() {
   return { products, cats: [...cats.entries()].map(([name, items]) => ({ name, items })) };
 }
 
-function stockOf(p) {
+async function stockOf(p) {
   if (p.source === "manual") return p.stock ?? 0;
   if (p.source === "gateway") return p.stock === null || p.stock === undefined ? 9999 : p.stock;
-  return 9999; // bandel: cek kuota reseller terpisah (cache)
+  return bandelQuota(); // bandel: kuota reseller asli (null = tidak diketahui → jangan blok)
 }
 
 let quotaCache = { at: 0, value: null };
@@ -181,6 +195,7 @@ function mapOrderRow(r) {
     validDays: r.valid_days, source: r.source, tierId: r.tier_id, category: r.category,
     productCode: r.product_code, buyerToken: r.buyer_token, qty: r.qty,
     qrisPayload: r.qris_payload, delivered: r.delivered,
+    deliveryPayload: r.delivery_payload || null,
     createdAt: new Date(r.created_at).toISOString(),
     expiresAt: new Date(r.expires_at).toISOString(),
     paidAt: r.paid_at ? new Date(r.paid_at).toISOString() : null,
@@ -197,51 +212,73 @@ async function createTelegramOrder(product, qty, tgUser, chatId) {
   if (settings.qrisProvider === "none" || !settings.qrisStatic) {
     return { ok: false, error: "QRIS belum dikonfigurasi di dashboard." };
   }
-  if (stockOf(product) < qty) return { ok: false, error: "Stok habis." };
+  const stok = await stockOf(product);
+  if (stok !== null && stok < qty) return { ok: false, error: "Stok habis." };
+  // bandel: kuota harus cukup untuk 1 unit produk (qty selalu 1 untuk bandel)
+  if (product.source === "bandel") {
+    const quota = await bandelQuota();
+    if (quota !== null && product.tokens > quota) return { ok: false, error: "Kuota reseller tidak cukup." };
+  }
 
   // satu invoice aktif per user telegram
   await q("UPDATE payment_orders SET status = 'expired' WHERE tg_user_id = ? AND status = 'pending'", [String(tgUser.id)]);
 
   const base = product.price * qty;
-  let amount = base;
-  let uniqueCode = 0;
-  if (settings.uniqueCodeEnabled) {
-    const pending = await q("SELECT amount FROM payment_orders WHERE status = 'pending' AND expires_at > NOW()");
-    const used = new Set(pending.map((p) => p.amount));
-    for (let i = 0; i < 80; i++) {
-      const unik = Math.floor(Math.random() * 499) + 1; // range bot 1-499 (web 100-999)
-      const candidate = base + unik;
-      if (!used.has(candidate)) {
-        amount = candidate;
-        uniqueCode = unik;
-        break;
-      }
-    }
-    if (!uniqueCode) return { ok: false, error: "Nominal pembayaran sedang penuh. Coba lagi." };
-  }
-
-  let qrisPayload;
-  try {
-    qrisPayload = qrisStaticToDynamic(settings.qrisStatic, amount);
-  } catch {
-    return { ok: false, error: "QRIS statis tidak valid. Hubungi admin." };
-  }
 
   const ttl = Math.max(1, Math.min(120, settings.ttlMinutes || 10));
   const invoice = invoiceCode();
   const now = new Date();
   const expiresAt = new Date(now.getTime() + ttl * 60_000);
 
-  await q(
-    `INSERT INTO payment_orders
-     (invoice, status, amount, unique_code, product_id, product_name, tokens, valid_days, source, tier_id, category, product_code, buyer_token, qty, qris_payload, tg_user_id, tg_chat_id, tg_name, tg_username, expires_at)
-     VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
-    [invoice, amount, uniqueCode, product.id, product.name, product.tokens, product.validDays,
-     product.source, product.tierId ?? null, categoryOf(product), product.productCode ?? null,
-     qty, qrisPayload, String(tgUser.id), String(chatId), tgUser.first_name || "", tgUser.username || "", expiresAt]
-  );
+  // transaksi + FOR UPDATE: serialisasi nominal duplikat antar request paralel
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  return { ok: true, order: { invoice, amount, uniqueCode, qrisPayload, productName: product.name, category: categoryOf(product), productCode: product.productCode, tierId: product.tierId }, ttl };
+    let finalAmount = amount;
+    let finalUnique = uniqueCode;
+    if (settings.uniqueCodeEnabled) {
+      const [pending] = await conn.query(
+        "SELECT amount FROM payment_orders WHERE status = 'pending' AND expires_at > NOW() FOR UPDATE",
+        []
+      );
+      const used = new Set(pending.map((p) => p.amount));
+      for (let i = 0; i < 80; i++) {
+        const unik = Math.floor(Math.random() * 499) + 1; // range bot 1-499 (web 100-999)
+        const candidate = base + unik;
+        if (!used.has(candidate)) {
+          finalAmount = candidate;
+          finalUnique = unik;
+          break;
+        }
+      }
+      if (!finalUnique) throw new Error("Nominal pembayaran sedang penuh. Coba lagi.");
+    }
+
+    let payload;
+    try {
+      payload = qrisStaticToDynamic(settings.qrisStatic, finalAmount);
+    } catch {
+      throw new Error("QRIS statis tidak valid. Hubungi admin.");
+    }
+
+    await conn.query(
+      `INSERT INTO payment_orders
+       (invoice, status, amount, unique_code, product_id, product_name, tokens, valid_days, source, tier_id, category, product_code, buyer_token, qty, qris_payload, tg_user_id, tg_chat_id, tg_name, tg_username, expires_at)
+       VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?)`,
+      [invoice, finalAmount, finalUnique, product.id, product.name, product.tokens, product.validDays,
+       product.source, product.tierId ?? null, categoryOf(product), product.productCode ?? null,
+       qty, payload, String(tgUser.id), String(chatId), tgUser.first_name || "", tgUser.username || "", expiresAt]
+    );
+    await conn.commit();
+
+    return { ok: true, order: { invoice, amount: finalAmount, uniqueCode: finalUnique, qrisPayload: payload, productName: product.name, category: categoryOf(product), productCode: product.productCode, tierId: product.tierId }, ttl };
+  } catch (e) {
+    await conn.rollback();
+    return { ok: false, error: e instanceof Error ? e.message : "Gagal membuat pesanan." };
+  } finally {
+    conn.release();
+  }
 }
 
 async function cancelTelegramOrder(invoice) {
@@ -297,8 +334,14 @@ async function bandelProvision(name, maxTokens, validDays) {
 }
 
 async function deliverOrder(order) {
+  // retry: item/provisi SUDAH diambil sebelumnya — pakai payload yang sama, jangan ambil stok baru
+  if (order.deliveryPayload) {
+    try {
+      return JSON.parse(order.deliveryPayload);
+    } catch {}
+  }
   if (order.source === "manual") {
-    const taken = takeManualStock(order.productId, order.qty || 1);
+    const taken = await takeManualStock(order.productId, order.qty || 1);
     if (!taken) throw new Error("stok tidak cukup");
     return { type: "items", items: taken };
   }
@@ -375,7 +418,7 @@ async function catKeyboard(page) {
   const pages = Math.max(1, Math.ceil(cats.length / PAGE));
   const slice = cats.slice(page * PAGE, page * PAGE + PAGE);
   const kb = [];
-  kb.push(slice.map((c, i) => ({ text: `${page * PAGE + i + 1}`, callback_data: `cat:${Buffer.from(c.name).toString("base64url").slice(0, 40)}:${page}` })));
+  kb.push(slice.map((c, i) => ({ text: `${page * PAGE + i + 1}`, callback_data: `cat:${catKey(c.name)}:${page}` })));
   if (pages > 1) {
     const nav = [];
     if (page > 0) nav.push({ text: "‹", callback_data: `cats:${page - 1}` });
@@ -389,20 +432,21 @@ async function catKeyboard(page) {
   return { text, kb };
 }
 
-async function catProducts(catKey, page) {
-  const catName = Buffer.from(catKey, "base64url").toString("utf8");
+async function catProducts(key, page) {
   const { cats } = await getCatalog();
-  const cat = cats.find((c) => c.name === catName);
-  if (!cat || cat.items.length === 0) return { text: `Belum ada produk di kategori *${catName}*.`, kb: [[{ text: "Kembali ke kategori", callback_data: "products:0" }]] };
+  const cat = cats.find((c) => catKey(c.name) === key);
+  if (!cat) return { text: "Kategori tidak ditemukan.", kb: [[{ text: "Kembali ke kategori", callback_data: "products:0" }]] };
+  const catName = cat.name;
+  if (cat.items.length === 0) return { text: `Belum ada produk di kategori *${catName}*.`, kb: [[{ text: "Kembali ke kategori", callback_data: "products:0" }]] };
   const pages = Math.max(1, Math.ceil(cat.items.length / PAGE));
   const slice = cat.items.slice(page * PAGE, page * PAGE + PAGE);
   const kb = [];
   kb.push(slice.map((p, i) => ({ text: `${page * PAGE + i + 1}`, callback_data: `prd:${p.id}` })));
   if (pages > 1) {
     const nav = [];
-    if (page > 0) nav.push({ text: "‹", callback_data: `cat:${catKey}:${page - 1}` });
+    if (page > 0) nav.push({ text: "‹", callback_data: `cat:${key}:${page - 1}` });
     nav.push({ text: `${page + 1}/${pages}`, callback_data: "noop" });
-    if (page < pages - 1) nav.push({ text: "›", callback_data: `cat:${catKey}:${page + 1}` });
+    if (page < pages - 1) nav.push({ text: "›", callback_data: `cat:${key}:${page + 1}` });
     kb.push(nav);
   }
   kb.push([{ text: "Kembali ke kategori", callback_data: "products:0" }]);
@@ -420,9 +464,9 @@ async function productDetail(productId, qty) {
 
   let stok;
   if (p.source === "bandel") {
-    stok = (await bandelQuota()) ?? null;
+    stok = await bandelQuota();
   } else {
-    stok = stockOf(p);
+    stok = await stockOf(p);
   }
   const stokLabel = p.source === "bandel" ? (stok === null ? "—" : stok >= p.tokens ? "Tersedia" : "Habis") : `${stok} unit`;
   const available = p.source === "bandel" ? stok === null || stok >= p.tokens : stok > 0;
@@ -458,7 +502,7 @@ async function productDetail(productId, qty) {
       : [{ text: "⛔ Stok habis", callback_data: "noop" }]
   );
   kb.push([
-    { text: "Kembali ke kategori", callback_data: `cat:${Buffer.from(categoryOf(p)).toString("base64url").slice(0, 40)}:0` },
+    { text: "Kembali ke kategori", callback_data: `cat:${catKey(categoryOf(p))}:0` },
   ]);
   return { text, kb };
 }
@@ -488,7 +532,7 @@ async function sendInvoice(ctx, order, ttl) {
 
   const kb = [
     [{ text: "❌ Batalkan transaksi", callback_data: `cancel:${order.invoice}` }],
-    [{ text: "🏷 Kembali ke kategori", callback_data: `cat:${Buffer.from(order.category).toString("base64url").slice(0, 40)}:0` }],
+    [{ text: "🏷 Kembali ke kategori", callback_data: `cat:${catKey(order.category)}:0` }],
   ];
 
   let msg;
@@ -505,7 +549,7 @@ async function sendInvoice(ctx, order, ttl) {
 /* ---------- commands ---------- */
 
 bot.start(async (ctx) => {
-  const { isNew } = await await upsertMember(ctx.from);
+  const { isNew } = await upsertMember(ctx.from);
 
   if (CONFIG.forceJoinOn && CONFIG.forceJoinChatId && !isAdmin(ctx)) {
     const ok = await checkJoin(ctx.from.id);
@@ -609,7 +653,7 @@ bot.command("cektrx", async (ctx) => {
   if (!isAdmin(ctx)) return;
   const today = todayWIB();
   const paid = (
-    await q("SELECT * FROM payment_orders WHERE status = 'paid' AND DATE(CONVERT_TZ(paid_at, '+00:00', '+07:00')) = CURDATE()")
+    await q("SELECT * FROM payment_orders WHERE status = 'paid' AND DATE(CONVERT_TZ(paid_at, '+00:00', '+07:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '+07:00'))")
   ).map(mapOrderRow);
   const omzet = paid.reduce((s, o) => s + o.amount, 0);
   await md(
@@ -682,12 +726,13 @@ bot.on("text", async (ctx) => {
   const p = products.find((x) => x.id === pending.productId);
   ctx.deleteMessage(ctx.message.message_id).catch(() => {});
   if (!p) return qtyEditPending.delete(ctx.from.id);
-  if (!n || n < 1 || n > stockOf(p)) {
-    const r = await ctx.reply(`Jumlah 1-${stockOf(p)}`);
+  const maxP = (await stockOf(p)) ?? 1;
+  if (!n || n < 1 || n > maxP) {
+    const r = await ctx.reply(`Jumlah 1-${maxP}`);
     setTimeout(() => ctx.deleteMessage(r.message_id).catch(() => {}), 2000);
     return;
   }
-  qtyByUser.set(ctx.from.id, n);
+  qtyByUser.set(`${ctx.from.id}:${p.id}`, n);
   qtyEditPending.delete(ctx.from.id);
   const detail = await productDetail(p.id, n);
   try {
@@ -753,7 +798,7 @@ bot.action("products:0", async (ctx) => {
 });
 
 bot.action(/prd:(\w+)/, async (ctx) => {
-  qtyByUser.set(ctx.from.id, 1);
+  qtyByUser.set(`${ctx.from.id}:${ctx.match[1]}`, 1);
   const detail = await productDetail(ctx.match[1], 1);
   await ctx.answerCbQuery();
   try {
@@ -765,10 +810,10 @@ bot.action(/qty:(\w+):([+-])/, async (ctx) => {
   const { products } = await getCatalog();
   const p = products.find((x) => x.id === ctx.match[1]);
   if (!p) return ctx.answerCbQuery("Produk tidak ditemukan");
-  const cur = qtyByUser.get(ctx.from.id) || 1;
-  const max = Math.max(1, stockOf(p));
+  const cur = qtyByUser.get(`${ctx.from.id}:${p.id}`) || 1;
+  const max = Math.max(1, (await stockOf(p)) ?? 1);
   const next = Math.min(max, Math.max(1, cur + (ctx.match[2] === "+" ? 1 : -1)));
-  qtyByUser.set(ctx.from.id, next);
+  qtyByUser.set(`${ctx.from.id}:${p.id}`, next);
   const detail = await productDetail(p.id, next);
   await ctx.answerCbQuery(`Jumlah: ${next}`);
   try {
@@ -790,7 +835,7 @@ bot.action(/buy:(\w+)/, async (ctx) => {
   const { products } = await getCatalog();
   const p = products.find((x) => x.id === ctx.match[1]);
   if (!p) return;
-  const qty = p.source === "bandel" ? 1 : qtyByUser.get(ctx.from.id) || 1;
+  const qty = p.source === "bandel" ? 1 : qtyByUser.get(`${ctx.from.id}:${p.id}`) || 1;
 
   const r = await createTelegramOrder(p, qty, ctx.from, ctx.chat.id);
   if (!r.ok) return ctx.reply(r.error);
@@ -811,7 +856,7 @@ bot.action(/cancel:(\w+)/, async (ctx) => {
   ctx.deleteMessage(ctx.callbackQuery.message.message_id).catch(() => {});
   const o = await getOrder(invoice);
   await md(ctx, `Transaksi *${invoice}* dibatalkan.\n\nAnda dapat memesan ulang kapan saja.`, [
-    [{ text: "🏷 Kembali ke kategori", callback_data: `cat:${Buffer.from(o?.category || "").toString("base64url").slice(0, 40)}:0` }],
+    [{ text: "🏷 Kembali ke kategori", callback_data: `cat:${catKey(o?.category || "")}:0` }],
   ]);
 });
 
@@ -873,7 +918,7 @@ setInterval(async () => {
           ].join("\n"),
           {
             parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "🏷 Kembali ke kategori", callback_data: `cat:${Buffer.from(o.category || "").toString("base64url").slice(0, 40)}:0` }]] },
+            reply_markup: { inline_keyboard: [[{ text: "🏷 Kembali ke kategori", callback_data: `cat:${catKey(o.category || "")}:0` }]] },
           }
         );
       } catch {}
@@ -894,16 +939,40 @@ setInterval(async () => {
       );
       if (claim.affectedRows !== 1) continue;
 
+      // order gateway: tidak otomatis — WAJIB notif admin
+      if (o.source === "gateway") {
+        await q("UPDATE payment_orders SET delivered = 'gateway manual (tunggu admin)' WHERE invoice = ?", [o.invoice]);
+        try {
+          if (o.tg?.qrisMessageId) await bot.telegram.deleteMessage(o.tg.chatId, o.tg.qrisMessageId).catch(() => {});
+          await bot.telegram.sendMessage(
+            o.tg.chatId,
+            `✅ *Pembayaran diterima*\n\n🆔 \`${o.invoice}\`\n📦 *${o.productName}*\n💰 ${rupiah(o.amount)}\n\nPengiriman produk gateway diproses manual oleh admin, maksimal 1x24 jam.`,
+            { parse_mode: "Markdown" }
+          );
+        } catch {}
+        await notifyAdmin(
+          [
+            `⚠️ *ORDER GATEWAY PERLU DIPROSES MANUAL*`,
+            ``,
+            `🆔 \`${o.invoice}\``,
+            `📦 ${o.productName}`,
+            `🔢 Qty · ${o.qty || 1}`,
+            `💰 ${rupiah(o.amount)}`,
+            `👤 ${o.tg?.name || "-"} · @${o.tg?.username || "—"} · \`${o.tg?.userId}\``,
+            `⏰ ${nowWIB()}`,
+          ].join("\n")
+        ).catch(() => {});
+        continue;
+      }
+
       try {
         if (o.tg?.qrisMessageId) await bot.telegram.deleteMessage(o.tg.chatId, o.tg.qrisMessageId).catch(() => {});
 
         const d = await deliverOrder(o);
         const items = formatDelivery(o, d);
-        await q("UPDATE payment_orders SET delivered = ? WHERE invoice = ?", [
-          d.type === "items" ? `${d.items.length} item terkirim` : d.type === "bandel" ? "key bandel terkirim" : "gateway manual",
-          o.invoice,
-        ]);
 
+        // KIRIM DULU baru tandai delivered — item manual sudah dihapus dari stok oleh
+        // takeManualStock; kalau send gagal kita simpan items agar retry tidak ambil stok baru
         await bot.telegram.sendMessage(
           o.tg.chatId,
           [
@@ -932,7 +1001,7 @@ setInterval(async () => {
           ].join("\n"),
           {
             parse_mode: "Markdown",
-            reply_markup: { inline_keyboard: [[{ text: "🏷 Kembali ke kategori", callback_data: `cat:${Buffer.from(o.category || "").toString("base64url").slice(0, 40)}:0` }]] },
+            reply_markup: { inline_keyboard: [[{ text: "🏷 Kembali ke kategori", callback_data: `cat:${catKey(o.category || "")}:0` }]] },
           }
         );
 
@@ -954,10 +1023,45 @@ setInterval(async () => {
             `✅ Stok terkirim ke customer`,
           ].join("\n")
         );
+
+        // sukses kirim → baru tandai delivered final + bersihkan payload retry
+        await q("UPDATE payment_orders SET delivered = ?, delivery_payload = NULL WHERE invoice = ?", [
+          d.type === "items" ? `${d.items.length} item terkirim` : d.type === "bandel" ? "key bandel terkirim" : "gateway manual",
+          o.invoice,
+        ]);
       } catch (e) {
         const msg = e instanceof Error ? e.message : "unknown";
+        // RESET claim agar poller tick berikutnya retry (maks 5x), bukan bolong selamanya
+        const attempt = Number(String(o.delivered || "").match(/^RETRY(\d+)$/)?.[1] ?? 0) + 1;
+        // item manual/bandel SUDAH diambil dari stok — simpan agar retry kirim item SAMA,
+        // bukan mengambil stok baru (mencegah item hilang / double provision)
+        if (typeof d !== "undefined") {
+          await q("UPDATE payment_orders SET delivery_payload = ? WHERE invoice = ?", [
+            JSON.stringify(d),
+            o.invoice,
+          ]).catch(() => {});
+        }
+        if (attempt < 5) {
+          await q("UPDATE payment_orders SET tg_delivered = 0, delivered = ? WHERE invoice = ?", [
+            `RETRY${attempt}`,
+            o.invoice,
+          ]);
+        } else {
+          await q("UPDATE payment_orders SET delivered = 'GAGAL KIRIM — proses manual' WHERE invoice = ?", [o.invoice]);
+          await notifyAdmin(
+            [
+              `🚨 *DELIVERY GAGAL 5x — PERLU MANUAL*`,
+              ``,
+              `🆔 \`${o.invoice}\``,
+              `📦 ${o.productName} (${o.source})`,
+              `💰 ${rupiah(o.amount)}`,
+              `👤 ${o.tg?.name || "-"} · \`${o.tg?.userId}\``,
+              `❌ Error: ${msg}`,
+            ].join("\n")
+          ).catch(() => {});
+        }
         await bot.telegram
-          .sendMessage(o.tg.chatId, `Pembayaran diterima, namun pengiriman gagal.\nInvoice · \`${o.invoice}\`\nHubungi admin untuk bantuan. (${msg})`, { parse_mode: "Markdown" })
+          .sendMessage(o.tg.chatId, `Pembayaran diterima, namun pengiriman sedang diproses ulang.\nInvoice · \`${o.invoice}\`\nMohon tunggu beberapa saat, atau hubungi admin bila lebih dari 15 menit.`, { parse_mode: "Markdown" })
           .catch(() => {});
       }
     }

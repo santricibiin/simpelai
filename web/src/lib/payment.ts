@@ -245,48 +245,61 @@ export async function createOrder(
   const now = new Date();
   let amount = input.amount;
   let uniqueCode = 0;
+  let qrisPayload = "";
+  let invoice = "";
+  let expiresAt = new Date();
 
-  if (settings.uniqueCodeEnabled) {
-    const pending = await query<{ amount: number }>(
-      "SELECT amount FROM payment_orders WHERE status = 'pending' AND expires_at > NOW()",
-      []
-    );
-    const used = new Set(pending.map((p) => p.amount));
-    for (let i = 0; i < 80; i++) {
-      const unik = Math.floor(Math.random() * 900) + 100;
-      const candidate = amount + unik;
-      if (!used.has(candidate)) {
-        amount = candidate;
-        uniqueCode = unik;
-        break;
-      }
-    }
-    if (uniqueCode === 0) return { ok: false, error: "Nominal pembayaran sedang penuh. Coba lagi." };
-  }
-
-  let qrisPayload: string;
+  // transaksi + FOR UPDATE: serialisasi pembuat invoice paralel (race nominal duplikat)
+  const conn = await pool.getConnection();
   try {
-    qrisPayload = qrisStaticToDynamic(settings.qrisStatic, amount);
-  } catch {
-    return { ok: false, error: "QRIS statis tidak valid. Hubungi admin." };
+    await conn.beginTransaction();
+    if (settings.uniqueCodeEnabled) {
+      const [pending] = await conn.query(
+        "SELECT amount FROM payment_orders WHERE status = 'pending' AND expires_at > NOW() FOR UPDATE",
+        []
+      );
+      const used = new Set((pending as { amount: number }[]).map((p) => p.amount));
+      for (let i = 0; i < 80; i++) {
+        const unik = Math.floor(Math.random() * 900) + 100;
+        const candidate = amount + unik;
+        if (!used.has(candidate)) {
+          amount = candidate;
+          uniqueCode = unik;
+          break;
+        }
+      }
+      if (uniqueCode === 0) throw new Error("Nominal pembayaran sedang penuh. Coba lagi.");
+    }
+
+    try {
+      qrisPayload = qrisStaticToDynamic(settings.qrisStatic, amount);
+    } catch {
+      throw new Error("QRIS statis tidak valid. Hubungi admin.");
+    }
+
+    const ttlMinutes = settings.ttlMinutes;
+    invoice = invoiceCode();
+    expiresAt = new Date(now.getTime() + ttlMinutes * 60_000);
+
+    await conn.query(
+      `INSERT INTO payment_orders
+       (invoice, status, amount, unique_code, product_id, product_name, tokens, valid_days, source, tier_id, category, product_code, buyer_token, qty, qris_payload, tg_user_id, tg_chat_id, tg_name, tg_username, expires_at)
+       VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        invoice, amount, uniqueCode, input.productId, input.productName, input.tokens, input.validDays,
+        input.source, input.tierId ?? null, input.category ?? null, input.productCode ?? null,
+        input.buyerToken ?? null, input.qty ?? 1, qrisPayload,
+        input.tg?.userId ?? null, input.tg?.chatId ?? null, input.tg?.name ?? null, input.tg?.username ?? null,
+        expiresAt,
+      ]
+    );
+    await conn.commit();
+  } catch (e) {
+    await conn.rollback();
+    conn.release();
+    return { ok: false, error: e instanceof Error ? e.message : "Gagal membuat pesanan." };
   }
-
-  const ttlMinutes = settings.ttlMinutes;
-  const invoice = invoiceCode();
-  const expiresAt = new Date(now.getTime() + ttlMinutes * 60_000);
-
-  await execute(
-    `INSERT INTO payment_orders
-     (invoice, status, amount, unique_code, product_id, product_name, tokens, valid_days, source, tier_id, category, product_code, buyer_token, qty, qris_payload, tg_user_id, tg_chat_id, tg_name, tg_username, expires_at)
-     VALUES (?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      invoice, amount, uniqueCode, input.productId, input.productName, input.tokens, input.validDays,
-      input.source, input.tierId ?? null, input.category ?? null, input.productCode ?? null,
-      input.buyerToken ?? null, input.qty ?? 1, qrisPayload,
-      input.tg?.userId ?? null, input.tg?.chatId ?? null, input.tg?.name ?? null, input.tg?.username ?? null,
-      expiresAt,
-    ]
-  );
+  conn.release();
 
   const rows = await query<OrderRow>("SELECT * FROM payment_orders WHERE invoice = ?", [invoice]);
   return { ok: true, order: mapOrder(rows[0]) };
