@@ -357,7 +357,7 @@ cmd_status() {
   echo
   say "Endpoint check"
   local WEB_PORT api web
-  WEB_PORT="$(ss -tlnp 2>/dev/null | grep -oP '(?<=:)\d+(?=.*)' >/dev/null; ss -tlnp | awk '/next-server/{match($0,/:(300[0-9])/,m); print m[1]; exit}')"
+  WEB_PORT="$(ss -tlnp | awk '/next-server/{if (match($0,/:(300[0-9])\s/,m)) {print m[1]; exit}}')"
   WEB_PORT="${WEB_PORT:-3000}"
   api="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:8080/api/status || echo down)"
   web="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 http://127.0.0.1:$WEB_PORT/ || echo down)"
