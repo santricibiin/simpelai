@@ -16,6 +16,7 @@ export default function ModelToggleList({
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState<number | "bulk" | null>(null);
   const [optimistic, setOptimistic] = useState<Record<number, boolean>>({});
+  const [error, setError] = useState<string | null>(null);
 
   const isOn = (m: ProviderModel) => optimistic[m.id] ?? m.enabled === 1;
 
@@ -29,6 +30,7 @@ export default function ModelToggleList({
   const toggle = async (m: ProviderModel) => {
     const next = !isOn(m);
     setBusy(m.id);
+    setError(null);
     setOptimistic((p) => ({ ...p, [m.id]: next }));
 
     const res = await fetch(`/api/proxy/api/admin/providers/${providerId}/models/${m.id}`, {
@@ -39,6 +41,8 @@ export default function ModelToggleList({
 
     if (!res?.ok) {
       setOptimistic((p) => ({ ...p, [m.id]: !next }));
+      const data = await res?.json().catch(() => null);
+      setError(data?.error ?? "Gagal mengubah status model — coba lagi.");
     } else {
       router.refresh();
     }
@@ -47,6 +51,7 @@ export default function ModelToggleList({
 
   const bulk = async (enabled: boolean) => {
     setBusy("bulk");
+    setError(null);
     const res = await fetch(`/api/proxy/api/admin/providers/${providerId}/models`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -56,6 +61,9 @@ export default function ModelToggleList({
     if (res?.ok) {
       setOptimistic(Object.fromEntries(models.map((m) => [m.id, enabled])));
       router.refresh();
+    } else {
+      const data = await res?.json().catch(() => null);
+      setError(data?.error ?? "Gagal mengubah massal — coba lagi.");
     }
     setBusy(null);
   };
@@ -70,6 +78,9 @@ export default function ModelToggleList({
 
   return (
     <div>
+      {error && (
+        <p className="mb-2 rounded-lg bg-red-500/10 px-3 py-1.5 text-xs text-red-400">{error}</p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <p className="font-mono text-[10px] uppercase tracking-[0.1em] text-slate-400">
           Model · {activeCount}/{models.length} aktif
