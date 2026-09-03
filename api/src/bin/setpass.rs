@@ -11,8 +11,8 @@ async fn main() -> anyhow::Result<()> {
     let email = args.next().ok_or_else(|| anyhow::anyhow!("usage: setpass <email> <password>"))?;
     let password = args.next().ok_or_else(|| anyhow::anyhow!("usage: setpass <email> <password>"))?;
 
-    if password.chars().count() < 12 {
-        anyhow::bail!("password minimal 12 karakter");
+    if password.chars().count() < 8 {
+        anyhow::bail!("password minimal 8 karakter");
     }
 
     let salt = SaltString::generate(&mut OsRng);
