@@ -138,7 +138,7 @@ setup_database() {
 
 # ------------------------------------------------------------- 3. ENV FILE
 setup_env() {
-  local DOMAIN="$1"
+  local DOMAIN="$1" API_PORT="$2"
 
   say "Generate file .env"
 
@@ -154,7 +154,7 @@ setup_env() {
     JWT="$(rand_hex)"; ENC="$(rand_b64)"
     cat > "$API_DIR/.env" <<EOF
 DATABASE_URL=mysql://neuroforge:${DB_PASS}@127.0.0.1:3306/neuroforge
-BIND_ADDR=127.0.0.1:8080
+BIND_ADDR=127.0.0.1:${API_PORT}
 WEB_ORIGIN=https://$DOMAIN
 JWT_SECRET=$JWT
 ENCRYPTION_KEY=$ENC
@@ -163,7 +163,7 @@ SEED_ADMIN_EMAIL=$ADMIN_EMAIL
 SEED_ADMIN_PASSWORD=$ADMIN_PASS
 EOF
     chmod 600 "$API_DIR/.env"
-    ok "api/.env dibuat"
+    ok "api/.env dibuat (API di :$API_PORT)"
   else
     ok "api/.env sudah ada — lewati"
   fi
@@ -189,7 +189,7 @@ EOF
 
 # -------------------------------------------------------------- 4. NGINX/SSL
 setup_nginx() {
-  local DOMAIN="$1"
+  local DOMAIN="$1" API_PORT="$2" WEB_PORT="$3"
   say "Configure nginx: $DOMAIN"
 
   cat > "$NGINX_SITE" <<EOF
@@ -218,12 +218,12 @@ server {
     client_max_body_size 25m;
 
     # API Rust
-    location /api/status { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params_common; }
-    location /v1/        { proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params_common; proxy_buffering off; proxy_read_timeout 300s; }
+    location /api/status { proxy_pass http://127.0.0.1:$API_PORT; include /etc/nginx/proxy_params_common; }
+    location /v1/        { proxy_pass http://127.0.0.1:$API_PORT; include /etc/nginx/proxy_params_common; proxy_buffering off; proxy_read_timeout 300s; }
 
     # Next.js
     location / {
-        proxy_pass http://127.0.0.1:3000;
+        proxy_pass http://127.0.0.1:$WEB_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection \$connection_upgrade;
@@ -270,12 +270,13 @@ build_all() {
 
 # ---------------------------------------------------------------- 6. PM2
 pm2_setup() {
+  local API_PORT="$1" WEB_PORT="$2"
   say "Register service di PM2"
   (cd "$API_DIR" && pm2 start "$API_DIR/target/release/neuroforge-api" --name "$PM2_API" --update-env)
-  (cd "$WEB_DIR" && pm2 start npm --name "$PM2_WEB" -- start)
+  (cd "$WEB_DIR" && PORT="$WEB_PORT" pm2 start npm --name "$PM2_WEB" -- start)
   pm2 save
   pm2 startup systemd -u "$USER" --hp "$HOME" >/dev/null 2>&1 || true
-  ok "PM2: $PM2_API, $PM2_WEB"
+  ok "PM2: $PM2_API (:$API_PORT), $PM2_WEB (:$WEB_PORT)"
 }
 
 # ================================================================ COMMANDS
@@ -284,21 +285,23 @@ cmd_setup() {
   banner
   say "MODE SETUP PENUH — sistem baru"
 
-  local DOMAIN
+  local DOMAIN API_PORT WEB_PORT
   DOMAIN="$(ask "Domain untuk routing (contoh: buatprem.biz.id)" "")"
   [[ -n "$DOMAIN" ]] || die "Domain wajib diisi"
+  API_PORT="$(ask "Port API (Rust)" "8080")"
+  WEB_PORT="$(ask "Port aplikasi (Next.js)" "3000")"
 
   install_system
   setup_database
-  setup_env "$DOMAIN"
+  setup_env "$DOMAIN" "$API_PORT"
   build_all
-  setup_nginx "$DOMAIN"
+  setup_nginx "$DOMAIN" "$API_PORT" "$WEB_PORT"
   # SSL dulu konek ke port 80 — perlu web jalan? Tidak: certbot --nginx cukup.
-  pm2_setup
+  pm2_setup "$API_PORT" "$WEB_PORT"
   setup_ssl "$DOMAIN"
 
   echo
-  ok "SELESAI 🎉  https://$DOMAIN"
+  ok "SELESAI ��  https://$DOMAIN (api :$API_PORT, web :$WEB_PORT)"
   say "Login admin: email di api/.env (SEED_ADMIN_EMAIL)"
   say "Cek status:  bash deploy.sh status"
 }
@@ -389,6 +392,56 @@ cmd_bot() {
   ok "Bot jalan di PM2 sebagai $PM2_BOT"
 }
 
+cmd_ports() {
+  need_root
+  banner
+  say "Ubah port service yang sedang jalan"
+
+  local CUR_API CUR_WEB API_PORT WEB_PORT NGCONF
+  CUR_API="$(grep -m1 '^BIND_ADDR=' "$API_DIR/.env" 2>/dev/null | sed 's/.*://')"
+  CUR_WEB="$(ss -tlnp | awk '/next-server/{if (match($0,/:(300[0-9])\s/,m)) {print m[1]; exit}}')"
+  CUR_API="${CUR_API:-8080}"; CUR_WEB="${CUR_WEB:-3000}"
+
+  API_PORT="$(ask "Port API (sekarang :$CUR_API)" "$CUR_API")"
+  WEB_PORT="$(ask "Port web (sekarang :$CUR_WEB)" "$CUR_WEB")"
+
+  # --- API: update .env lalu restart PM2
+  if [[ "$API_PORT" != "$CUR_API" ]]; then
+    ss -tln "sport = :$API_PORT" | grep -q LISTEN && die "Port :$API_PORT sudah dipakai proses lain"
+    sed -i "s|^BIND_ADDR=.*|BIND_ADDR=127.0.0.1:$API_PORT|" "$API_DIR/.env"
+    pm2 restart "$PM2_API" --update-env >/dev/null
+    ok "API pindah ke :$API_PORT"
+  else
+    ok "API tetap :$API_PORT"
+  fi
+
+  # --- Web: PORT via env PM2
+  if [[ "$WEB_PORT" != "$CUR_WEB" ]]; then
+    ss -tln "sport = :$WEB_PORT" | grep -q LISTEN && die "Port :$WEB_PORT sudah dipakai proses lain"
+    pm2 delete "$PM2_WEB" >/dev/null 2>&1
+    (cd "$WEB_DIR" && PORT="$WEB_PORT" pm2 start npm --name "$PM2_WEB" -- run dev >/dev/null)
+    ok "Web pindah ke :$WEB_PORT"
+  else
+    ok "Web tetap :$WEB_PORT"
+  fi
+  pm2 save >/dev/null
+
+  # --- Nginx: temukan config aktif lalu ganti upstream
+  NGCONF="$(grep -rl "127.0.0.1:$CUR_API" /etc/nginx/sites-enabled/ 2>/dev/null | head -1)"
+  if [[ -n "$NGCONF" ]]; then
+    sed -i "s|127.0.0.1:$CUR_API|127.0.0.1:$API_PORT|g; s|127.0.0.1:$CUR_WEB|127.0.0.1:$WEB_PORT|g" "$NGCONF"
+    nginx -t 2>/dev/null || die "config nginx rusak setelah edit — cek manual $NGCONF"
+    systemctl reload nginx
+    ok "nginx ($NGCONF) → api :$API_PORT, web :$WEB_PORT"
+  else
+    warn "Config nginx pakai port :$CUR_API tidak ketemu — update manual"
+  fi
+
+  sleep 3
+  echo
+  cmd_status
+}
+
 # ==================================================================== MENU
 menu() {
   banner
@@ -400,6 +453,7 @@ menu() {
   ${B}5${R} Logs             ${DIM}api | web | bot | nginx${R}
   ${B}6${R} SSL              ${DIM}issue / perpanjang cert${R}
   ${B}7${R} Bot Telegram     ${DIM}start/refresh bot${R}
+  ${B}8${R} Ubah port        ${DIM}api & web + update nginx${R}
   ${B}0${R} Keluar
 
 EOF
@@ -413,6 +467,7 @@ EOF
     5) local L; L="$(ask "Log apa (api/web/bot/nginx/all)" "all")"; cmd_logs "$L" ;;
     6) cmd_ssl ;;
     7) cmd_bot ;;
+    8) cmd_ports ;;
     0) exit 0 ;;
     *) die "Pilihan tidak valid" ;;
   esac
@@ -427,6 +482,7 @@ case "${1:-menu}" in
   logs)    cmd_logs "${2:-all}" ;;
   ssl)     cmd_ssl ;;
   bot)     cmd_bot ;;
+  ports)   cmd_ports ;;
   menu|"") menu ;;
-  *) die "Perintah tidak dikenal: $1 (setup|update|restart|status|logs|ssl|bot)" ;;
+  *) die "Perintah tidak dikenal: $1 (setup|update|restart|status|logs|ssl|bot|ports)" ;;
 esac
