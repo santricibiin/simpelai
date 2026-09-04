@@ -94,7 +94,7 @@ export default function ResellerKeyForm({
           </button>
         </div>
         <span className="mt-1.5 block text-[11px] text-slate-500 dark:text-slate-400">
-          Key divalidasi ke bandelbanget.xyz sebelum disimpan. Rotate key maksimal 1x per jam — key lama langsung
+          Key divalidasi ke provider upstream sebelum disimpan. Rotate key maksimal 1x per jam — key lama langsung
           mati.
         </span>
       </label>

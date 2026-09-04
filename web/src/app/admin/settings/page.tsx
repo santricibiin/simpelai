@@ -25,7 +25,7 @@ export default async function SettingsPage() {
           <SiteSettingsForm initial={settings} />
         </ChartPanel>
 
-        <ChartPanel icon="KeyRound" title="Reseller Bandel API Key">
+        <ChartPanel icon="KeyRound" title="Reseller Provider API Key">
           <ResellerKeyForm
             initialMasked={keyInfo.key ? maskKey(keyInfo.key) : null}
             initialSource={keyInfo.source}

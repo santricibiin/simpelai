@@ -1384,14 +1384,14 @@ function Tutorial({ baseUrl, apiKey }: { baseUrl: string; apiKey: string }) {
 }`;
 
   const codexConfig = `model = "gpt-5.6-sol"
-model_provider = "bandelbanget"
+model_provider = "simpelai"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 
-[model_providers.bandelbanget]
-name = "BandelBanget"
+[model_providers.simpelai]
+name = "SimpelAI"
 base_url = "${baseUrl}"
-env_key = "BANDELBANGET_API_KEY"
+env_key = "SIMPELAI_API_KEY"
 wire_api = "responses"
 request_max_retries = 3
 stream_max_retries = 3
@@ -1475,7 +1475,7 @@ stream_idle_timeout_ms = 300000`;
                 <CodeBlock code={codexConfig} label="Salin config" lang="toml" />
               </Step>
               <Step number={3} title="Set API key">
-                Export variable <code className="rounded bg-slate-900/[.04] px-1 py-0.5 font-mono text-[11px] dark:bg-white/[.04]">BANDELBANGET_API_KEY</code> dengan API key dari tab Kuota, lalu buka ulang Codex.
+                Export variable <code className="rounded bg-slate-900/[.04] px-1 py-0.5 font-mono text-[11px] dark:bg-white/[.04]">SIMPELAI_API_KEY</code> dengan API key dari tab Kuota, lalu buka ulang Codex.
               </Step>
             </ol>
           </div>

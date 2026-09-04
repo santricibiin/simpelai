@@ -3,6 +3,7 @@
 import { motion, useReducedMotion } from "framer-motion";
 import {
   AlertCircle,
+  ArrowRight,
   CalendarDays,
   Check,
   Coins,
@@ -446,15 +447,20 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
               </dl>
 
               <div className="mt-auto pt-5">
-                <p
-                  className={`rounded-xl border border-dashed py-2.5 text-center font-mono text-[11px] ${
-                    p.available
-                      ? "border-slate-900/[.12] text-slate-500 dark:border-white/[.12] dark:text-slate-400"
-                      : "border-amber-500/30 text-amber-500"
-                  }`}
-                >
-                  {p.available ? "halaman order segera" : "stok menyusul"}
-                </p>
+                {p.available ? (
+                  <a
+                    href={`/contact?produk=${encodeURIComponent(p.name)}`}
+                    className="group/btn relative inline-flex w-full items-center justify-center gap-2 overflow-hidden rounded-xl bg-crimson px-4 py-2.5 text-center text-sm font-semibold text-offwhite transition duration-300 hover:bg-crimson-600 hover:shadow-neon focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-crimson-400"
+                  >
+                    Pesan paket ini
+                    <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover/btn:translate-x-1" />
+                    <span className="pointer-events-none absolute inset-0 bg-shine bg-[length:200%_100%] opacity-0 transition-opacity duration-300 group-hover/btn:animate-shine group-hover/btn:opacity-100" />
+                  </a>
+                ) : (
+                  <p className="rounded-xl border border-dashed border-amber-500/30 py-2.5 text-center font-mono text-[11px] text-amber-500">
+                    stok menyusul
+                  </p>
+                )}
               </div>
             </motion.li>
           );

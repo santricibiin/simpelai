@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Check } from "lucide-react";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PricelistTable from "@/components/PricelistTable";
@@ -56,6 +57,15 @@ export default async function PricelistPage() {
                 kuota token siap kirim: {ringkas(kuota)}
               </p>
             )}
+
+            <ul className="mt-6 flex flex-wrap gap-2">
+              {["QRIS semua e-wallet", "API key terkirim otomatis", "Tanpa daftar akun"].map((t) => (
+                <li key={t} className="pill text-slate-600 dark:text-slate-300">
+                  <Check className="h-3 w-3 text-crimson-500" />
+                  {t}
+                </li>
+              ))}
+            </ul>
           </header>
 
           <div className="mt-8 sm:mt-12">

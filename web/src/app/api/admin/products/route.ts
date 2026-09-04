@@ -35,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "nama produk wajib diisi (maks 60 karakter)" }, { status: 400 });
   }
   if (source !== "bandel" && source !== "gateway" && source !== "manual") {
-    return NextResponse.json({ error: "sumber stok harus bandel, gateway, atau manual" }, { status: 400 });
+    return NextResponse.json({ error: "sumber stok harus provider, gateway, atau manual" }, { status: 400 });
   }
 
   let finalTokens = 0;
@@ -48,7 +48,7 @@ export async function POST(req: Request) {
 
   if (source === "bandel") {
     const tier = BANDEL_TIERS.find((t) => t.id === tierId);
-    if (!tier) return NextResponse.json({ error: "paket bandel tidak valid" }, { status: 400 });
+    if (!tier) return NextResponse.json({ error: "paket provider tidak valid" }, { status: 400 });
     finalTokens = tier.tokens;
     finalDays = tier.validDays;
     finalTier = tier.id;

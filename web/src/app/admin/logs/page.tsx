@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import LogsTable from "@/components/admin/LogsTable";
-import UsageByModelPanel from "@/components/admin/UsageByModelPanel";
 import { getLogs } from "@/lib/session";
-import { usageByModel } from "@/lib/reseller";
 
 export const metadata: Metadata = { title: "Request Logs" };
 export const dynamic = "force-dynamic";
@@ -13,7 +11,7 @@ const EMPTY = {
 };
 
 export default async function LogsPage() {
-  const [{ data }, usage] = await Promise.all([getLogs(200), usageByModel("today")]);
+  const { data } = await getLogs(200);
 
   return (
     <div className="space-y-6">
@@ -24,7 +22,6 @@ export default async function LogsPage() {
         </p>
       </div>
 
-      <UsageByModelPanel initial={usage.data} />
       <LogsTable initial={data ?? EMPTY} />
     </div>
   );

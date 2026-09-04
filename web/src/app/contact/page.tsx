@@ -87,7 +87,7 @@ export default async function ContactPage() {
 
             {!contact.telegram && !contact.whatsapp && (
               <p className="glass p-8 text-center text-sm text-slate-500 dark:text-slate-400">
-                Kanal kontak belum dikonfigurasi. Admin bisa mengaturnya di halaman Bandel → Kontak Member.
+                Kanal kontak belum dikonfigurasi. Admin bisa mengaturnya di halaman Provider → Kontak Member.
               </p>
             )}
           </div>

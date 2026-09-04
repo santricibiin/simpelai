@@ -21,12 +21,16 @@ export default function Modal({
   tone?: "default" | "danger";
 }) {
   const panel = useRef<HTMLDivElement>(null);
+  // simpan onClose di ref agar effect tidak re-run saat parent re-render
+  // (re-run akan mencuri fokus dari input yang sedang diketik)
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
 
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") closeRef.current();
     };
 
     document.addEventListener("keydown", onKey);
@@ -34,7 +38,7 @@ export default function Modal({
     first?.focus();
 
     return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

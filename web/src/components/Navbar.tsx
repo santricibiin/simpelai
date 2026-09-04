@@ -1,5 +1,6 @@
 "use client";
 
+import { AnimatePresence, motion } from "framer-motion";
 import { Menu, X, Cpu } from "lucide-react";
 import { useEffect, useState } from "react";
 import ThemeToggle from "./ThemeToggle";
@@ -82,9 +83,17 @@ export default function Navbar({ siteName }: { siteName: string }) {
         </div>
       </nav>
 
-      {open && (
-        <div className="border-t border-slate-900/[.07] bg-offwhite/95 backdrop-blur-2xl md:hidden dark:border-white/[.07] dark:bg-slateDeep-900/95">
-          <ul className="container-x flex flex-col gap-1 py-4">
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            key="menu-mobile"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden border-t border-slate-900/[.07] bg-offwhite/95 backdrop-blur-2xl md:hidden dark:border-white/[.07] dark:bg-slateDeep-900/95"
+          >
+            <ul className="container-x flex flex-col gap-1 py-4">
             {links.map((l) => (
               <li key={l.href}>
                 <a
@@ -118,8 +127,9 @@ export default function Navbar({ siteName }: { siteName: string }) {
               </a>
             </li>
           </ul>
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </header>
   );
 }

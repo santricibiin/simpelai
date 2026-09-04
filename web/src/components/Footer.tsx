@@ -1,6 +1,6 @@
 "use client";
 
-import { Cpu, Github, Twitter } from "lucide-react";
+import { Cpu } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SiteName } from "./SiteName";
 
@@ -86,14 +86,9 @@ export default function Footer({ siteName }: { siteName: string }) {
 
       <div className="container-x mt-12 flex flex-col items-center justify-between gap-4 border-t border-slate-900/10 py-6 text-xs text-slate-500 sm:flex-row dark:border-white/10 dark:text-slate-400">
         <p>&copy; {new Date().getFullYear()} {siteName}. All rights reserved.</p>
-        <div className="flex items-center gap-4">
-          <a href="#" aria-label="GitHub" className="transition hover:text-crimson-500">
-            <Github className="h-4 w-4" />
-          </a>
-          <a href="#" aria-label="Twitter" className="transition hover:text-crimson-500">
-            <Twitter className="h-4 w-4" />
-          </a>
-        </div>
+        <a href="/contact" className="font-mono text-[11px] uppercase tracking-[0.14em] transition hover:text-crimson-500">
+          butuh bantuan? hubungi kami
+        </a>
       </div>
     </footer>
   );

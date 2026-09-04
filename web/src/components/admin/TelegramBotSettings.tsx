@@ -252,8 +252,8 @@ export default function TelegramBotSettings({ initial, initialRunning }: { initi
             "/start — registrasi + welcome + force join",
             "/produk — katalog kategori → produk → qty → beli",
             "Pembayaran QRIS otomatis (kode unik, expired, polling)",
-            "Delivery otomatis: stok manual (FIFO) & token bandel (key baru + PIN)",
-            "/ceksaldo — kuota & saldo reseller bandel",
+            "Delivery otomatis: stok manual (FIFO) & token provider (key baru + PIN)",
+            "/ceksaldo — kuota & saldo reseller provider",
             "/cektrx — laporan transaksi hari ini",
             "/bc <pesan> — broadcast ke semua member",
             "/getid — ambil chat ID (user/channel)",
@@ -266,7 +266,7 @@ export default function TelegramBotSettings({ initial, initialRunning }: { initi
         <p className="mt-4 text-[11px] text-slate-500 dark:text-slate-400">
           Bot berbagi produk dari halaman <span className="font-medium">Produk</span> dan pembayaran QRIS dari halaman{" "}
           <span className="font-medium">Payment</span> — kategori bot otomatis dari kategori produk (manual), "Token AI"
-          (bandel), dan "Token Gateway" (gateway). Log: <code className="font-mono">/var/log/telegram-bot.log</code>.
+          (provider), dan "Token Gateway" (gateway). Log: <code className="font-mono">/var/log/telegram-bot.log</code>.
         </p>
       </section>
     </div>

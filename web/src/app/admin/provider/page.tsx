@@ -8,26 +8,31 @@ import ModelsList from "@/components/admin/ModelsList";
 import ResellerBalance from "@/components/admin/ResellerBalance";
 import { getBandelDomain } from "@/lib/bandel-domain";
 import { getContact } from "@/lib/contact";
-import { getResellerQuota, listAllCustomerKeys, listCustomerKeys, listModels } from "@/lib/reseller";
+import { getResellerQuota, listAllCustomerKeys, listCustomerKeys, listModels, listModelsAll } from "@/lib/reseller";
 import { fetchResellerKeys } from "@/lib/member-quota";
 
-export const metadata: Metadata = { title: "Bandel" };
+export const metadata: Metadata = { title: "Provider" };
 export const dynamic = "force-dynamic";
 
 const nf = new Intl.NumberFormat("id-ID");
 const compact = (n: number) =>
   new Intl.NumberFormat("en", { notation: "compact", maximumFractionDigits: 2 }).format(n);
 
-export default async function BandelPage() {
-  const [quota, keys, models, resellerKeys, domain, contact, allCustomers] = await Promise.all([
+export default async function ProviderPage() {
+  const [quota, keys, models, modelsAll, resellerKeys, domain, contact, allCustomers] = await Promise.all([
     getResellerQuota(),
     listCustomerKeys({ page: 1, limit: 10 }),
     listModels(),
+    listModelsAll(),
     fetchResellerKeys(),
     getBandelDomain(),
     getContact(),
     listAllCustomerKeys().catch(() => []),
   ]);
+
+  // gabungkan daftar lengkap (aktif + off) dengan multiplier dari daftar aktif
+  const multById = new Map((models.data?.data ?? []).map((m) => [m.id, m.multiplier]));
+  const allModels = (modelsAll.data ?? []).map((m) => ({ ...m, multiplier: multById.get(m.id) ?? 1 }));
 
   const tokenById = new Map<string, string>();
   for (const k of resellerKeys.keys ?? []) {
@@ -49,10 +54,9 @@ export default async function BandelPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Bandel</h1>
+        <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Provider</h1>
         <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-          Saldo, kuota, model, dan manajemen customer key reseller{" "}
-          <span className="font-medium">bandelbanget.xyz</span>.
+          Saldo, kuota, model, dan manajemen customer key dari provider upstream.
         </p>
       </div>
 
@@ -81,7 +85,7 @@ export default async function BandelPage() {
         <BandelDomainForm initial={domain} />
       </CollapseSection>
 
-      <ModelsList initial={models.data?.data ?? []} />
+      <ModelsList initial={allModels} />
       <CustomerKeys initial={keys.data} tokenById={tokenById} />
     </div>
   );

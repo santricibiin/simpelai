@@ -66,6 +66,9 @@ export type BandelModel = {
   vision: boolean;
 };
 
+/** Model dari endpoint publik — termasuk yang nonaktif (enabled: false). */
+export type PublicBandelModel = BandelModel & { enabled: boolean };
+
 export type ModelList = { object: string; data: BandelModel[] };
 
 export type ModelUsage = { model: string; multiplier: number; successRate: number };
@@ -166,7 +169,7 @@ async function resellerFetch(path: string, init?: RequestInit): Promise<{ status
     signal: AbortSignal.timeout(15_000),
   }).catch(() => null);
 
-  if (!res) return { status: 502, data: null, error: "bandelbanget.xyz tidak dapat dihubungi." };
+  if (!res) return { status: 502, data: null, error: "provider tidak dapat dihubungi." };
 
   const data = await res.json().catch(() => null);
   if (!res.ok) {
@@ -258,6 +261,19 @@ export async function listModels(): Promise<{ status: number; data: ModelList | 
   return { status: 200, data: r.data as ModelList, error: null };
 }
 
+/** Daftar SEMUA model provider (aktif + off) dari endpoint publik /v1/models. */
+export async function listModelsAll(): Promise<{ status: number; data: PublicBandelModel[] | null; error: string | null }> {
+  const res = await fetch(`${RESELLER_BASE}/v1/models`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  }).catch(() => null);
+  if (!res?.ok) return { status: 502, data: null, error: "daftar model provider tidak dapat dimuat." };
+  const body = (await res.json().catch(() => null)) as { data?: unknown } | null;
+  const rows = Array.isArray(body?.data) ? body!.data as PublicBandelModel[] : null;
+  if (!rows) return { status: 502, data: null, error: "respons daftar model tidak valid." };
+  return { status: 200, data: rows, error: null };
+}
+
 export async function usageByModel(
   period: string,
   customerId?: number
@@ -282,9 +298,9 @@ export async function setResellerApiKey(
     signal: AbortSignal.timeout(10_000),
   }).catch(() => null);
 
-  if (!res) return { status: 502, data: null, error: "bandelbanget.xyz tidak dapat dihubungi." };
+  if (!res) return { status: 502, data: null, error: "provider tidak dapat dihubungi." };
   if (!res.ok) {
-    return { status: 400, data: null, error: `Key ditolak oleh bandelbanget.xyz (HTTP ${res.status}).` };
+    return { status: 400, data: null, error: `Key ditolak oleh provider (HTTP ${res.status}).` };
   }
 
   const quota = (await res.json().catch(() => null)) as ResellerQuota | null;

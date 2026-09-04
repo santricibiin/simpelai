@@ -80,14 +80,14 @@ export default function DashboardView({ data }: { data: DashboardData }) {
           <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
             {tab === "gateway"
               ? "Statistik gateway Rust Anda — request, token, dan transaksi pembayaran."
-              : "Statistik reseller bandelbanget.xyz — kuota, customer, dan kesehatan model."}
+              : "Statistik provider upstream — kuota, customer, dan kesehatan model."}
           </p>
         </div>
 
         <div className="flex items-center gap-1 rounded-xl border border-slate-900/15 p-1 dark:border-white/15">
           {[
             { id: "gateway" as const, label: "Gateway", icon: Cpu },
-            { id: "bandel" as const, label: "Bandel", icon: Router },
+            { id: "bandel" as const, label: "Provider", icon: Router },
           ].map((t) => (
             <button
               key={t.id}
@@ -323,7 +323,7 @@ export default function DashboardView({ data }: { data: DashboardData }) {
             </ChartPanel>
           </div>
 
-          <ChartPanel icon="CreditCard" title="Transaksi bandel (top up member)">
+          <ChartPanel icon="CreditCard" title="Transaksi provider (top up member)">
             {data.bandelOrders.length === 0 ? (
               <p className="py-8 text-center text-xs text-slate-400">Belum ada transaksi.</p>
             ) : (

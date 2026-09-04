@@ -90,11 +90,11 @@ export default function Hero() {
       <div className="relative border-y border-slate-900/[.07] py-4 dark:border-white/[.07]">
         <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24 bg-gradient-to-r from-offwhite to-transparent dark:from-slateDeep-900" />
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24 bg-gradient-to-l from-offwhite to-transparent dark:from-slateDeep-900" />
-        <div className="flex w-max animate-marquee items-center gap-10 will-change-transform">
+        <div className="flex w-max animate-marquee items-center gap-10 will-change-transform hover:[animation-play-state:paused]">
           {[...trust, ...trust].map((t, i) => (
             <span
               key={`${t}-${i}`}
-              className="whitespace-nowrap font-mono text-xs uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500"
+              className="shrink-0 whitespace-nowrap font-mono text-xs uppercase tracking-[0.18em] text-slate-400 transition-colors hover:text-crimson-500 dark:text-slate-500"
             >
               {t}
             </span>

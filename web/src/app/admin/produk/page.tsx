@@ -13,7 +13,7 @@ export default async function ProductsPage() {
       <div>
         <h1 className="font-display text-2xl font-semibold tracking-tight sm:text-3xl">Produk</h1>
         <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
-          Kelola produk token yang dijual — stok dari paket bandel (top up reseller) atau dari API keys gateway sendiri.
+          Kelola produk token yang dijual — stok dari paket provider (top up reseller) atau dari API keys gateway sendiri.
         </p>
       </div>
 

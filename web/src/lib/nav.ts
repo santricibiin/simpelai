@@ -14,7 +14,7 @@ const allGroups: NavGroup[] = [
     title: "Kelola",
     items: [
       { href: "/admin/routing", label: "Routing", icon: "Boxes" },
-      { href: "/admin/bandel", label: "Bandel", icon: "Wallet" },
+      { href: "/admin/provider", label: "Provider", icon: "Wallet" },
       { href: "/admin/produk", label: "Produk", icon: "Package" },
       { href: "/admin/payment", label: "Payment", icon: "CreditCard" },
       { href: "/admin/telegram", label: "Telegram Bot", icon: "Bot" },
