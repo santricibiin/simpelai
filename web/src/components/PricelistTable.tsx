@@ -2,6 +2,7 @@
 
 import { motion, useReducedMotion } from "framer-motion";
 import {
+  AlertCircle,
   CalendarDays,
   Check,
   Coins,
@@ -67,15 +68,20 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
       token: (a, b) => b.tokens - a.tokens,
       populer: (a, b) => b.soldCount - a.soldCount,
     };
-    return [...rows].sort(cmp[sort]);
+    // yang tidak tersedia selalu di bawah, apa pun urutannya
+    return [...rows].sort(
+      (a, b) => Number(b.available) - Number(a.available) || cmp[sort](a, b),
+    );
   }, [products, query, cat, sort]);
 
-  // rasio token/harga terbaik = paling worth it
+  // rasio token/harga terbaik = paling worth it (hanya yang bisa dipesan)
   const bestId = useMemo(() => {
-    const eligible = products.filter((p) => p.tokens > 0 && p.price > 0);
+    const eligible = products.filter((p) => p.available && p.tokens > 0 && p.price > 0);
     if (eligible.length < 2) return null;
     return eligible.reduce((best, p) => (p.tokens / p.price > best.tokens / best.price ? p : best)).id;
   }, [products]);
+
+  const habis = products.filter((p) => !p.available).length;
 
   const resetFilter = () => {
     setQuery("");
@@ -209,6 +215,7 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
 
               <p className="ml-auto hidden shrink-0 font-mono text-[11px] uppercase tracking-[0.14em] text-slate-400 sm:block dark:text-slate-500">
                 {filtered.length}/{products.length} produk
+                {habis > 0 && <span className="text-amber-500"> · {habis} habis</span>}
               </p>
 
               {filterAktif && (
@@ -253,7 +260,9 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
               {filtered.map((p) => (
                 <tr
                   key={p.id}
-                  className="border-b border-slate-900/[.05] transition last:border-0 hover:bg-crimson/[.03] dark:border-white/[.05]"
+                  className={`border-b border-slate-900/[.05] transition last:border-0 hover:bg-crimson/[.03] dark:border-white/[.05] ${
+                    p.available ? "" : "opacity-55"
+                  }`}
                 >
                   <th scope="row" className="max-w-xs px-5 py-4 text-left font-normal">
                     <span className="flex items-center gap-2">
@@ -263,9 +272,17 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
                           best
                         </span>
                       )}
+                      {!p.available && (
+                        <span className="shrink-0 rounded-full bg-amber-500/15 px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500">
+                          habis
+                        </span>
+                      )}
                     </span>
                     <span className="mt-0.5 block font-mono text-[10px] uppercase tracking-[0.14em] text-crimson-500">
                       {p.category}
+                      {!p.available && p.reason && (
+                        <span className="text-amber-500"> · {p.reason}</span>
+                      )}
                     </span>
                   </th>
                   <td className="px-5 py-4 text-slate-600 dark:text-slate-300">
@@ -311,9 +328,9 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.45, delay: Math.min(i, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-              className={`card card-hover card-edge group flex flex-col p-5 sm:p-6 ${
-                featured ? "border-crimson/30 ring-1 ring-crimson/20" : ""
-              }`}
+              className={`card card-edge group flex flex-col p-5 sm:p-6 ${
+                p.available ? "card-hover" : "opacity-60 saturate-50"
+              } ${featured ? "border-crimson/30 ring-1 ring-crimson/20" : ""}`}
             >
               {/* header: kategori + badge */}
               <div className="flex items-start justify-between gap-2">
@@ -323,6 +340,11 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
                 {featured && (
                   <span className="shrink-0 rounded-full bg-crimson px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-offwhite">
                     best value
+                  </span>
+                )}
+                {!p.available && (
+                  <span className="shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500">
+                    habis
                   </span>
                 )}
               </div>
@@ -378,23 +400,39 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
                   </div>
                 )}
                 <div className="flex items-center gap-2">
-                  <Check className="h-3.5 w-3.5 shrink-0 text-crimson-500" />
-                  <dt className="sr-only">Stok</dt>
+                  {p.available ? (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-crimson-500" />
+                  ) : (
+                    <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-500" />
+                  )}
+                  <dt className="sr-only">Ketersediaan</dt>
                   <dd
                     className={`min-w-0 truncate ${
-                      p.stock !== null && p.stock <= 5
+                      !p.available || (p.stock !== null && p.stock <= 5)
                         ? "font-semibold text-amber-500"
                         : "text-slate-600 dark:text-slate-300"
                     }`}
                   >
-                    {p.stock === null ? "stok tersedia" : `sisa ${p.stock}`}
+                    {!p.available
+                      ? (p.reason ?? "tidak tersedia")
+                      : p.source === "bandel"
+                        ? "kuota tersedia"
+                        : p.stock === null
+                          ? "stok tersedia"
+                          : `sisa ${p.stock}`}
                   </dd>
                 </div>
               </dl>
 
               <div className="mt-auto pt-5">
-                <p className="rounded-xl border border-dashed border-slate-900/[.12] py-2.5 text-center font-mono text-[11px] text-slate-500 dark:border-white/[.12] dark:text-slate-400">
-                  halaman order segera
+                <p
+                  className={`rounded-xl border border-dashed py-2.5 text-center font-mono text-[11px] ${
+                    p.available
+                      ? "border-slate-900/[.12] text-slate-500 dark:border-white/[.12] dark:text-slate-400"
+                      : "border-amber-500/30 text-amber-500"
+                  }`}
+                >
+                  {p.available ? "halaman order segera" : "stok menyusul"}
                 </p>
               </div>
             </motion.li>

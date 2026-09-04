@@ -242,6 +242,21 @@ export async function createOrder(
     return { ok: false, error: "Pembayaran QRIS belum aktif. Hubungi admin." };
   }
 
+  // Produk bandel dikirim dari kuota reseller upstream — pastikan cukup SEBELUM
+  // invoice dibuat, biar pembeli tidak bayar untuk sesuatu yang gagal dikirim.
+  if (input.source === "bandel" && input.tokens > 0) {
+    const perlu = input.tokens * (input.qty ?? 1);
+    const { getResellerQuota } = await import("./reseller");
+    const q = await getResellerQuota().catch(() => null);
+    if (q?.data && q.data.quota < perlu) {
+      return {
+        ok: false,
+        error: `Stok token sedang tidak cukup (butuh ${perlu.toLocaleString("id-ID")}, tersedia ${q.data.quota.toLocaleString("id-ID")}). Hubungi admin.`,
+      };
+    }
+    // q.data null (upstream error) → lanjutkan; fulfillment tetap memverifikasi.
+  }
+
   const now = new Date();
   let amount = input.amount;
   let uniqueCode = 0;

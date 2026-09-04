@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import PricelistTable from "@/components/PricelistTable";
-import { getPublicProducts } from "@/lib/public-products";
+import { getPublicProducts, getResellerQuotaTokens } from "@/lib/public-products";
 import { getSettings } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -11,8 +11,22 @@ export const metadata: Metadata = {
 };
 export const dynamic = "force-dynamic";
 
+const ringkas = (n: number) => {
+  if (n >= 1_000_000_000)
+    return `${(n / 1_000_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} miliar`;
+  if (n >= 1_000_000)
+    return `${(n / 1_000_000).toLocaleString("id-ID", { maximumFractionDigits: 1 })} juta`;
+  return n.toLocaleString("id-ID");
+};
+
 export default async function PricelistPage() {
-  const [{ site_name }, products] = await Promise.all([getSettings(), getPublicProducts()]);
+  const [{ site_name }, products, kuota] = await Promise.all([
+    getSettings(),
+    getPublicProducts(),
+    getResellerQuotaTokens(),
+  ]);
+
+  const adaBandel = products.some((p) => p.source === "bandel");
 
   return (
     <>
@@ -35,6 +49,13 @@ export default async function PricelistPage() {
               Harga berlaku per paket, sekali bayar. Data diambil langsung dari katalog produk yang
               aktif — kalau stok habis, paketnya otomatis hilang dari daftar.
             </p>
+
+            {adaBandel && kuota !== null && (
+              <p className="pill mt-5 text-slate-600 dark:text-slate-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                kuota token siap kirim: {ringkas(kuota)}
+              </p>
+            )}
           </header>
 
           <div className="mt-8 sm:mt-12">
