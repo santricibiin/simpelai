@@ -16,9 +16,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     return NextResponse.json({ error: "body harus JSON" }, { status: 400 });
   }
 
-  const { name, price, enabled, stock } = (body ?? {}) as Record<string, unknown>;
+  const { name, price, enabled, stock, promoBadge } = (body ?? {}) as Record<string, unknown>;
 
-  const patch: { name?: string; price?: number; enabled?: boolean; stock?: number | null } = {};
+  const patch: { name?: string; price?: number; enabled?: boolean; stock?: number | null; promoBadge?: string | null } = {};
   if (name !== undefined) {
     if (typeof name !== "string" || !name.trim() || name.trim().length > 60) {
       return NextResponse.json({ error: "nama tidak valid" }, { status: 400 });
@@ -40,6 +40,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: "stok tidak valid" }, { status: 400 });
     }
     patch.stock = stock;
+  }
+  if (promoBadge !== undefined) {
+    if (promoBadge !== null && typeof promoBadge !== "string") {
+      return NextResponse.json({ error: "badge promo tidak valid" }, { status: 400 });
+    }
+    patch.promoBadge = typeof promoBadge === "string" ? promoBadge.trim().slice(0, 30) || null : null;
   }
 
   const updated = await updateProduct(id, patch);

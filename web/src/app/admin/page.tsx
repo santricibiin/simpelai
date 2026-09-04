@@ -22,7 +22,7 @@ export default async function AdminPage() {
 
   // model paling sering dipakai: hitung jumlah member yang memakai tiap model (dari byCustomer)
   const modelCount = new Map<string, { model: string; multiplier: number; successRate: number; customerCount: number }>();
-  const byCustomer = usage.data?.byCustomer ?? [];
+  const byCustomer = usage?.data?.byCustomer ?? [];
   for (const c of byCustomer) {
     for (const m of c.models ?? []) {
       const cur = modelCount.get(m.model);
@@ -40,7 +40,7 @@ export default async function AdminPage() {
 
   const data: DashboardData = {
     bandel: {
-      quota: quota.data,
+      quota: quota?.data ?? null,
       activeCustomers: allCustomers.filter((c) => c.status === "active").length,
       exceededCustomers: allCustomers.filter((c) => c.status === "exceeded").length,
       suspendedCustomers: allCustomers.filter((c) => c.status !== "active" && c.status !== "exceeded").length,
@@ -61,10 +61,17 @@ export default async function AdminPage() {
       paidCount: paidOrders.length,
       pendingCount: (orders ?? []).filter((o) => o.status === "pending").length,
       totalOrders: orders?.length ?? 0,
-      keys: platformKeys.data ?? [],
-      rust: rustStats.data,
+      keys: platformKeys?.data ?? [],
+      rust: rustStats?.data ?? null,
     },
-    bandelOrders: (orders ?? []).slice(0, 10),
+    bandelOrders: (orders ?? []).slice(0, 10).map((o) => ({
+      invoice: o.invoice,
+      productName: o.productName,
+      amount: o.amount,
+      status: o.status,
+      createdAt: o.createdAt,
+      delivered: o.delivered ?? undefined,
+    })),
     paymentOnline: settings.qrisProvider !== "none",
   };
 

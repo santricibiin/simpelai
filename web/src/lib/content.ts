@@ -1,10 +1,10 @@
 export type Feature = { icon: string; title: string; desc: string; metric: string };
 
 export const features: Feature[] = [
-  { icon: "Boxes", title: "OpenAI-compatible", desc: "Endpoint /v1/chat/completions standar — SDK OpenAI, LangChain, Cline, apa pun langsung jalan.", metric: "drop-in" },
-  { icon: "Zap", title: "Streaming penuh", desc: "Dukung stream: true, token mengalir realtime tanpa nunggu respons selesai.", metric: "SSE stream" },
-  { icon: "Gauge", title: "Kuota transparan", desc: "Tiap request tercatat token in/out-nya. Cek sisa kuota kapan pun dari halaman Cek Kuota.", metric: "live tracking" },
-  { icon: "ShieldCheck", title: "API key aman", desc: "Key kamu di-hash, bisa dicabut sendiri, dan punya rate limit terpisah per key.", metric: "revocable" },
+  { icon: "Boxes", title: "Smart routing", desc: "Request otomatis dirutekan ke provider dan model terbaik yang tersedia — failover tanpa kamu sentuh.", metric: "auto-route" },
+  { icon: "Zap", title: "Satu endpoint", desc: "Endpoint /v1/chat/completions format OpenAI. Semua model di belakang gateway, tanpa ganti SDK.", metric: "drop-in" },
+  { icon: "Gauge", title: "Kuota transparan", desc: "Tiap request tercatat token in/out-nya per model. Cek sisa kuota realtime kapan pun.", metric: "live tracking" },
+  { icon: "ShieldCheck", title: "API key aman", desc: "Key di-hash, bisa dicabut sendiri, rate limit terpisah per key — kontrol penuh di tanganmu.", metric: "revocable" },
 ];
 
 export type Step = { n: string; title: string; desc: string };
@@ -12,23 +12,23 @@ export type Step = { n: string; title: string; desc: string };
 export const steps: Step[] = [
   {
     n: "01",
-    title: "Pilih paket token",
-    desc: "Buka daftar harga, tentukan besaran token sesuai kebutuhan proyek kamu.",
+    title: "Pilih paket kuota",
+    desc: "Beli paket token lewat QRIS. Kuota itu yang dipakai semua request yang lewat gateway.",
   },
   {
     n: "02",
-    title: "Bayar via QRIS",
-    desc: "Scan QRIS dari halaman order atau bot Telegram. Konfirmasi otomatis, tanpa nunggu admin.",
-  },
-  {
-    n: "03",
     title: "Terima API key",
     desc: "API key langsung dikirim setelah pembayaran masuk. Simpan — key hanya ditampilkan sekali.",
   },
   {
-    n: "04",
+    n: "03",
     title: "Ganti base URL",
-    desc: "Di kode kamu, arahkan base URL ke gateway kami dan pakai API key itu sebagai Bearer token.",
+    desc: "Arahkan base URL ke gateway kami, pakai API key sebagai Bearer token. Format tetap OpenAI.",
+  },
+  {
+    n: "04",
+    title: "Request langsung dirutekan",
+    desc: "Sebut nama model di request, gateway merutekannya ke provider terbaik. Ganti model = ganti satu baris.",
   },
 ];
 

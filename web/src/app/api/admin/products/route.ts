@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "body harus JSON" }, { status: 400 });
   }
 
-  const { name, source, tierId, category, productCode, tokens, validDays, price, stock, stockItems } = (body ?? {}) as Record<string, unknown>;
+  const { name, source, tierId, category, productCode, tokens, validDays, price, promoBadge, stock, stockItems } = (body ?? {}) as Record<string, unknown>;
 
   if (typeof name !== "string" || !name.trim() || name.trim().length > 60) {
     return NextResponse.json({ error: "nama produk wajib diisi (maks 60 karakter)" }, { status: 400 });
@@ -81,6 +81,14 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "harga tidak valid" }, { status: 400 });
   }
 
+  let finalPromo: string | null = null;
+  if (promoBadge !== undefined && promoBadge !== null) {
+    if (typeof promoBadge !== "string") {
+      return NextResponse.json({ error: "badge promo tidak valid" }, { status: 400 });
+    }
+    finalPromo = promoBadge.trim().slice(0, 30) || null;
+  }
+
   const product = await createProduct({
     name: name.trim(),
     source,
@@ -90,6 +98,7 @@ export async function POST(req: Request) {
     tokens: finalTokens,
     validDays: finalDays,
     price,
+    promoBadge: finalPromo,
     stock: finalStock,
     stockItems: finalStockItems,
   });

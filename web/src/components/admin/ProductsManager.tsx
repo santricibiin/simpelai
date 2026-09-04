@@ -50,6 +50,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
     tokens: "1000000",
     validDays: "7",
     price: "",
+    promoBadge: "",
     stock: "",
     unlimited: true,
     gatewayPreset: "custom" as string,
@@ -67,6 +68,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
   const [editTarget, setEditTarget] = useState<Product | null>(null);
   const [editName, setEditName] = useState("");
   const [editPrice, setEditPrice] = useState("");
+  const [editPromo, setEditPromo] = useState("");
   const [editStock, setEditStock] = useState("");
   const [modalError, setModalError] = useState<string | null>(null);
 
@@ -91,6 +93,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
         name: form.name.trim(),
         source: form.source,
         price: Number(form.price) || 0,
+        promoBadge: form.promoBadge.trim() || null,
       };
       if (form.source === "bandel") payload.tierId = form.tierId;
       else if (form.source === "gateway") {
@@ -109,7 +112,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
         body: JSON.stringify(payload),
       });
       setProducts((p) => [...p, created as Product]);
-      setForm({ ...form, name: "", price: "", stock: "", stockItems: "", unlimited: true });
+      setForm({ ...form, name: "", price: "", promoBadge: "", stock: "", stockItems: "", unlimited: true });
       router.refresh();
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Gagal menambah produk.");
@@ -140,7 +143,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
     setBusy("edit");
     setModalError(null);
     try {
-      const payload: Record<string, unknown> = { name: editName.trim(), price: Number(editPrice) || 0 };
+      const payload: Record<string, unknown> = { name: editName.trim(), price: Number(editPrice) || 0, promoBadge: editPromo.trim() || null };
       if (editTarget.source === "gateway") payload.stock = editStock === "" ? null : Number(editStock);
       const updated = await call(`/${editTarget.id}`, {
         method: "PATCH",
@@ -285,6 +288,17 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
               onChange={(e) => setForm({ ...form, price: e.target.value })}
               placeholder="15000"
               className={`${field} font-mono text-xs`}
+            />
+          </label>
+
+          <label className="block">
+            <span className={labelCls}>Badge promo (opsional)</span>
+            <input
+              maxLength={30}
+              value={form.promoBadge}
+              onChange={(e) => setForm({ ...form, promoBadge: e.target.value })}
+              placeholder="PROMO / HEMAT 20%"
+              className={field}
             />
           </label>
         </div>
@@ -580,9 +594,16 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                       <p className="truncate text-sm font-semibold">{p.name}</p>
                       <p className="mt-0.5 font-mono text-[10px] text-slate-400">#{p.id}</p>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 font-mono text-[10px] uppercase ${style.badge}`}>
-                      {style.label}
-                    </span>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] uppercase ${style.badge}`}>
+                        {style.label}
+                      </span>
+                      {p.promoBadge && (
+                        <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 font-mono text-[10px] font-bold uppercase text-white shadow-sm">
+                          {p.promoBadge}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="mt-4">
@@ -678,6 +699,7 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                           setModalError(null);
                           setEditName(p.name);
                           setEditPrice(String(p.price));
+                          setEditPromo(p.promoBadge ?? "");
                           setEditStock(p.stock === null || p.stock === undefined ? "" : String(p.stock));
                           setEditTarget(p);
                         }}
@@ -755,6 +777,16 @@ export default function ProductsManager({ initial, tiers }: { initial: Product[]
                 value={editPrice}
                 onChange={(e) => setEditPrice(e.target.value)}
                 className={`${field} font-mono text-xs`}
+              />
+            </label>
+            <label className="block">
+              <span className={labelCls}>Badge promo (kosongkan = tanpa badge)</span>
+              <input
+                value={editPromo}
+                onChange={(e) => setEditPromo(e.target.value)}
+                maxLength={30}
+                placeholder="PROMO / HEMAT 20%"
+                className={field}
               />
             </label>
             {editTarget.source === "gateway" && (

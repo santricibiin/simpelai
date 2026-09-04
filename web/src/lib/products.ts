@@ -11,6 +11,7 @@ export type Product = {
   tokens: number;
   validDays: number;
   price: number;
+  promoBadge?: string | null;
   enabled: boolean;
   stock: number | null;
   soldCount?: number;
@@ -46,6 +47,7 @@ interface ProductRow {
   tokens: number;
   valid_days: number;
   price: number;
+  promo_badge: string | null;
   enabled: number;
   stock: number | null;
   sold_count: number;
@@ -63,6 +65,7 @@ function mapRow(r: ProductRow): Product {
     tokens: Number(r.tokens),
     validDays: r.valid_days,
     price: r.price,
+    promoBadge: r.promo_badge ?? null,
     enabled: Boolean(r.enabled),
     stock: r.stock === null ? null : Number(r.stock),
     soldCount: r.sold_count,
@@ -84,17 +87,18 @@ export async function createProduct(input: {
   tokens: number;
   validDays: number;
   price: number;
+  promoBadge?: string | null;
   stock: number | null;
   stockItems?: string[];
 }): Promise<Product> {
   const id = randomUUID().slice(0, 8);
   const stock = input.source === "manual" ? (input.stockItems?.length ?? 0) : input.stock;
   await execute(
-    `INSERT INTO products (id, name, source, tier_id, category, product_code, tokens, valid_days, price, enabled, stock, sold_count)
-     VALUES (?,?,?,?,?,?,?,?,?,1,?,0)`,
+    `INSERT INTO products (id, name, source, tier_id, category, product_code, tokens, valid_days, price, promo_badge, enabled, stock, sold_count)
+     VALUES (?,?,?,?,?,?,?,?,?,?,1,?,0)`,
     [
       id, input.name.trim(), input.source, input.tierId ?? null, input.category ?? null, input.productCode ?? null,
-      input.tokens, input.validDays, input.price, stock,
+      input.tokens, input.validDays, input.price, input.promoBadge ?? null, stock,
     ]
   );
   if (input.source === "manual" && input.stockItems?.length) {
@@ -108,7 +112,7 @@ export async function createProduct(input: {
 
 export async function updateProduct(
   id: string,
-  patch: { name?: string; price?: number; enabled?: boolean; stock?: number | null; category?: string; productCode?: string }
+  patch: { name?: string; price?: number; enabled?: boolean; stock?: number | null; category?: string; productCode?: string; promoBadge?: string | null }
 ): Promise<Product | null> {
   const sets: string[] = [];
   const params: unknown[] = [];
@@ -119,6 +123,10 @@ export async function updateProduct(
   if (patch.price !== undefined && Number.isFinite(patch.price) && patch.price >= 0) {
     sets.push("price = ?");
     params.push(patch.price);
+  }
+  if (patch.promoBadge !== undefined) {
+    sets.push("promo_badge = ?");
+    params.push(patch.promoBadge);
   }
   if (patch.enabled !== undefined) {
     sets.push("enabled = ?");

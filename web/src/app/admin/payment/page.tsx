@@ -16,7 +16,16 @@ export default async function PaymentPage() {
   const limit = 5;
   const totalPages = Math.max(1, Math.ceil(all.length / limit));
   const initialData = {
-    orders: all.slice(0, limit),
+    orders: all.slice(0, limit).map((o) => ({
+      invoice: o.invoice,
+      status: o.status,
+      amount: o.amount,
+      productName: o.productName,
+      tokens: o.tokens,
+      createdAt: o.createdAt,
+      paidAt: o.paidAt ?? undefined,
+      delivered: o.delivered ?? undefined,
+    })),
     total: all.length,
     page: 1,
     totalPages,

@@ -19,10 +19,10 @@ export default function Features() {
               kapabilitas
             </span>
             <h2 className="mt-5 font-display text-3xl font-semibold tracking-tighter sm:text-[2.75rem] sm:leading-[1.1]">
-              Yang kamu dapat <span className="text-gradient">di setiap key</span>
+              Routing AI <span className="text-gradient">tanpa ribet</span>
             </h2>
             <p className="mt-4 text-slate-600 dark:text-slate-300">
-              Standar, bukan fitur tambahan. Semua key punya kemampuan yang sama.
+              Semua kemampuan gateway aktif di setiap key. Tanpa biaya tambahan, tanpa tier tersembunyi.
             </p>
           </div>
 

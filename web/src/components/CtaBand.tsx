@@ -20,7 +20,7 @@ export default function CtaBand() {
 
         <div className="relative">
           <h2 className="mx-auto max-w-2xl font-display text-3xl font-semibold tracking-tighter sm:text-[2.5rem] sm:leading-[1.12]">
-            Siap mulai? <span className="text-gradient">Pilih paketnya dulu.</span>
+            Siap mulai routing? <span className="text-gradient">Pilih paketnya dulu.</span>
           </h2>
           <p className="mx-auto mt-4 max-w-xl text-slate-600 dark:text-slate-300">
             Bingung paket mana yang pas? Tanya dulu lewat kontak kami — dijawab manusia, bukan bot.

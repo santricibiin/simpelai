@@ -9,6 +9,7 @@ export type PublicProduct = {
   tokens: number;
   validDays: number;
   price: number;
+  promoBadge: string | null;
   stock: number | null;
   soldCount: number;
   /** false = tidak bisa dipesan sekarang (kuota reseller kurang / stok habis). */
@@ -25,6 +26,7 @@ interface Row {
   tokens: number;
   valid_days: number;
   price: number;
+  promo_badge: string | null;
   stock: number | null;
   sold_count: number;
 }
@@ -62,7 +64,7 @@ export function invalidateResellerQuotaCache(): void {
  */
 export async function getPublicProducts(): Promise<PublicProduct[]> {
   const rows = await query<Row>(
-    `SELECT id, name, category, source, tokens, valid_days, price, stock, sold_count
+    `SELECT id, name, category, source, tokens, valid_days, price, promo_badge, stock, sold_count
      FROM products
      WHERE enabled = 1
        AND (source = 'bandel' OR stock IS NULL OR stock > 0)
@@ -84,7 +86,7 @@ export async function getPublicProducts(): Promise<PublicProduct[]> {
       // diverifikasi ulang saat fulfillment.
       if (kuota !== null && tokens > kuota) {
         available = false;
-        reason = "kuota reseller tidak cukup";
+        reason = kuota <= 0 ? "kuota reseller habis" : "kuota reseller kurang";
       }
     } else if (stock !== null && stock <= 0) {
       available = false;
@@ -99,6 +101,7 @@ export async function getPublicProducts(): Promise<PublicProduct[]> {
       tokens,
       validDays: r.valid_days,
       price: r.price,
+      promoBadge: r.promo_badge?.trim() || null,
       stock,
       soldCount: r.sold_count,
       available,

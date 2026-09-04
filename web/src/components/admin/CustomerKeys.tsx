@@ -408,7 +408,13 @@ export default function CustomerKeys({
         )}
         <button
           type="button"
-          onClick={() => (filter === "all" ? load({ page }) : setFilteredList(null) || changeFilter(filter))}
+          onClick={() => {
+            if (filter === "all") load({ page });
+            else {
+              setFilteredList(null);
+              changeFilter(filter);
+            }
+          }}
           disabled={loadingPage}
           className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-slate-900/15 px-2.5 py-1.5 text-xs font-medium transition hover:border-crimson-500 hover:text-crimson-500 disabled:opacity-50 dark:border-white/15"
         >

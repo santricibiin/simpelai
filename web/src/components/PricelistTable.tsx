@@ -267,6 +267,11 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
                   <th scope="row" className="max-w-xs px-5 py-4 text-left font-normal">
                     <span className="flex items-center gap-2">
                       <span className="truncate font-display font-semibold tracking-tight">{p.name}</span>
+                      {p.promoBadge && (
+                        <span className="shrink-0 rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2 py-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-white">
+                          {p.promoBadge}
+                        </span>
+                      )}
                       {p.id === bestId && (
                         <span className="shrink-0 rounded-full bg-crimson px-2 py-0.5 font-mono text-[9px] uppercase tracking-[0.1em] text-offwhite">
                           best
@@ -328,25 +333,39 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, amount: 0.15 }}
               transition={{ duration: 0.45, delay: Math.min(i, 6) * 0.05, ease: [0.22, 1, 0.36, 1] }}
-              className={`card card-edge group flex flex-col p-5 sm:p-6 ${
+              className={`card card-edge group relative flex flex-col p-5 sm:p-6 ${
                 p.available ? "card-hover" : "opacity-60 saturate-50"
               } ${featured ? "border-crimson/30 ring-1 ring-crimson/20" : ""}`}
             >
+              {/* overlay habis */}
+              {!p.available && (
+                <span className="absolute right-4 top-1/2 -translate-y-1/2 -rotate-12 rounded-lg border-2 border-amber-500/60 px-3 py-1 font-mono text-xs font-bold uppercase tracking-[0.2em] text-amber-500/90">
+                  habis
+                </span>
+              )}
+
               {/* header: kategori + badge */}
               <div className="flex items-start justify-between gap-2">
                 <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-crimson-500">
                   {p.category}
                 </span>
-                {featured && (
-                  <span className="shrink-0 rounded-full bg-crimson px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-offwhite">
-                    best value
-                  </span>
-                )}
-                {!p.available && (
-                  <span className="shrink-0 rounded-full bg-amber-500/15 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500">
-                    habis
-                  </span>
-                )}
+                <div className="flex shrink-0 flex-col items-end gap-1">
+                  {p.promoBadge && (
+                    <span className="rounded-full bg-gradient-to-r from-amber-400 to-orange-500 px-2.5 py-1 font-mono text-[9px] font-bold uppercase tracking-[0.1em] text-white shadow-[0_0_12px_-2px_rgba(251,191,36,.6)]">
+                      {p.promoBadge}
+                    </span>
+                  )}
+                  {featured && (
+                    <span className="rounded-full bg-crimson px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-offwhite">
+                      best value
+                    </span>
+                  )}
+                  {!p.available && (
+                    <span className="rounded-full bg-amber-500/15 px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.1em] text-amber-500">
+                      {p.source === "bandel" ? "kuota habis" : "habis"}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <h3 className="mt-2 font-display text-base font-semibold leading-snug tracking-tight sm:text-lg">
@@ -414,7 +433,9 @@ export default function PricelistTable({ products }: { products: PublicProduct[]
                     }`}
                   >
                     {!p.available
-                      ? (p.reason ?? "tidak tersedia")
+                      ? p.source === "bandel"
+                        ? "kuota reseller habis — menyusul"
+                        : (p.reason ?? "tidak tersedia")
                       : p.source === "bandel"
                         ? "kuota tersedia"
                         : p.stock === null
