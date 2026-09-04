@@ -44,11 +44,12 @@ export default function Footer({ siteName }: { siteName: string }) {
   const label = { checking: "Memeriksa…", ok: "All systems operational", down: "Degraded" }[status];
 
   return (
-    <footer id="docs" className="border-t border-slate-900/10 pt-14 dark:border-white/10">
+    <footer id="docs" className="relative border-t border-slate-900/[.07] pt-16 dark:border-white/[.07]">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-crimson/30 to-transparent" />
       <div className="container-x grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <a href="#" className="flex items-center gap-2 font-display text-lg font-semibold">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-crimson text-offwhite">
+          <a href="/" className="group flex items-center gap-2.5 font-display text-lg font-semibold">
+            <span className="grid h-9 w-9 place-items-center rounded-2xl bg-crimson text-offwhite transition-transform duration-300 group-hover:scale-105">
               <Cpu className="h-5 w-5" />
             </span>
             <SiteName name={siteName} />
@@ -56,7 +57,7 @@ export default function Footer({ siteName }: { siteName: string }) {
           <p className="mt-4 max-w-xs text-sm text-slate-600 dark:text-slate-400">
             Token AI siap pakai dengan API format OpenAI — beli, dapat key, langsung integrasi.
           </p>
-          <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-900/10 px-3 py-1.5 text-xs dark:border-white/10">
+          <p className="pill mt-5">
             <span className={`h-2 w-2 rounded-full ${dot}`} />
             {label}
           </p>
@@ -64,11 +65,16 @@ export default function Footer({ siteName }: { siteName: string }) {
 
         {nav.map((col) => (
           <nav key={col.title} aria-label={col.title}>
-            <h3 className="font-display text-sm font-semibold uppercase tracking-[0.1em] text-crimson-500">{col.title}</h3>
-            <ul className="mt-4 space-y-2.5 text-sm">
+            <h3 className="font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-crimson-500">
+              {col.title}
+            </h3>
+            <ul className="mt-5 space-y-3 text-sm">
               {col.items.map((it) => (
                 <li key={it.href}>
-                  <a href={it.href} className="text-slate-600 transition hover:text-crimson-500 dark:text-slate-400">
+                  <a
+                    href={it.href}
+                    className="text-slate-600 transition duration-300 hover:text-crimson-500 dark:text-slate-400"
+                  >
                     {it.label}
                   </a>
                 </li>

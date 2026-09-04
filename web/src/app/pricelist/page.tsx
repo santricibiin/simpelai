@@ -19,22 +19,25 @@ export default async function PricelistPage() {
       <Navbar siteName={site_name} />
 
       <main className="relative overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 bg-grid bg-[size:44px_44px] opacity-[0.25] [mask-image:radial-gradient(ellipse_at_top,black,transparent_65%)]" />
-        <div className="pointer-events-none absolute -top-32 left-1/2 h-64 w-[32rem] -translate-x-1/2 rounded-full bg-crimson/15 blur-[110px]" />
+        <div className="pointer-events-none absolute inset-0 bg-dot-grid bg-[size:22px_22px] opacity-[0.45] [mask-image:radial-gradient(ellipse_at_top,black,transparent_62%)] dark:opacity-[0.3]" />
+        <div className="aurora -top-24 left-1/2 h-64 w-[30rem] -translate-x-1/2 bg-crimson/18" />
 
         <div className="container-x relative py-14 sm:py-20">
           <header className="max-w-2xl">
-            <span className="font-mono text-xs uppercase tracking-[0.2em] text-crimson-500">pricelist</span>
-            <h1 className="mt-3 font-display text-4xl font-semibold tracking-tighter sm:text-5xl">
-              Daftar <span className="text-crimson-500">harga</span>
+            <span className="pill text-crimson-500">
+              <span className="h-1.5 w-1.5 rounded-full bg-crimson-500" />
+              pricelist
+            </span>
+            <h1 className="mt-5 font-display text-4xl font-semibold tracking-tightest sm:text-6xl">
+              Daftar <span className="text-gradient">harga</span>
             </h1>
-            <p className="mt-4 text-slate-600 dark:text-slate-300">
+            <p className="mt-5 text-slate-600 dark:text-slate-300">
               Harga berlaku per paket, sekali bayar. Data diambil langsung dari katalog produk yang
               aktif — kalau stok habis, paketnya otomatis hilang dari daftar.
             </p>
           </header>
 
-          <div className="mt-10">
+          <div className="mt-12">
             <PricelistTable products={products} />
           </div>
         </div>

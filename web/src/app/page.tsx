@@ -3,6 +3,7 @@ import Hero from "@/components/Hero";
 import HowItWorks from "@/components/HowItWorks";
 import Integrasi from "@/components/Integrasi";
 import Features from "@/components/Features";
+import CtaBand from "@/components/CtaBand";
 import Footer from "@/components/Footer";
 import { getSettings } from "@/lib/session";
 
@@ -19,6 +20,7 @@ export default async function Page() {
         <HowItWorks />
         <Integrasi />
         <Features />
+        <CtaBand />
       </main>
       <Footer siteName={site_name} />
     </>
