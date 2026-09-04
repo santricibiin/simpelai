@@ -6,10 +6,10 @@ import ThemeToggle from "./ThemeToggle";
 import { SiteName } from "./SiteName";
 
 const links = [
-  { href: "#playground", label: "Playground" },
-  { href: "#features", label: "Features" },
-  { href: "#pricing", label: "Pricing" },
-  { href: "#docs", label: "Docs" },
+  { href: "/#cara-pakai", label: "Cara Pakai" },
+  { href: "/#integrasi", label: "Integrasi" },
+  { href: "/pricelist", label: "Daftar Harga" },
+  { href: "/cek-kuota", label: "Cek Kuota" },
 ];
 
 export default function Navbar({ siteName }: { siteName: string }) {
@@ -44,10 +44,10 @@ export default function Navbar({ siteName }: { siteName: string }) {
             Login
           </a>
           <a
-            href="#pricing"
+            href="/pricelist"
             className="hidden rounded-xl bg-crimson px-4 py-2.5 text-sm font-semibold text-offwhite shadow-neon transition hover:bg-crimson-600 sm:inline-block"
           >
-            Get API Key
+            Daftar Harga
           </a>
           <button
             type="button"
@@ -85,11 +85,11 @@ export default function Navbar({ siteName }: { siteName: string }) {
           </li>
           <li>
             <a
-              href="#pricing"
+              href="/pricelist"
               onClick={() => setOpen(false)}
               className="mt-1 block rounded-xl bg-crimson px-3 py-3 text-center text-sm font-semibold text-offwhite"
             >
-              Get API Key
+              Daftar Harga
             </a>
           </li>
         </ul>

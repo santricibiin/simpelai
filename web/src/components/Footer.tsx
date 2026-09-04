@@ -5,9 +5,25 @@ import { useEffect, useState } from "react";
 import { SiteName } from "./SiteName";
 
 const nav = [
-  { title: "Produk", items: ["Playground", "Features", "Pricing", "Changelog"] },
-  { title: "Developer", items: ["Docs", "API Reference", "SDK", "Status"] },
-  { title: "Perusahaan", items: ["Tentang", "Blog", "Keamanan", "Kontak"] },
+  {
+    title: "Produk",
+    items: [
+      { label: "Cara Pakai", href: "/#cara-pakai" },
+      { label: "Integrasi", href: "/#integrasi" },
+      { label: "Daftar Harga", href: "/pricelist" },
+    ],
+  },
+  {
+    title: "Member",
+    items: [
+      { label: "Cek Kuota", href: "/cek-kuota" },
+      { label: "Login", href: "/login" },
+    ],
+  },
+  {
+    title: "Bantuan",
+    items: [{ label: "Kontak", href: "/contact" }],
+  },
 ];
 
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8080";
@@ -38,7 +54,7 @@ export default function Footer({ siteName }: { siteName: string }) {
             <SiteName name={siteName} />
           </a>
           <p className="mt-4 max-w-xs text-sm text-slate-600 dark:text-slate-400">
-            Grid inference LLM untuk developer yang menolak kompromi soal latency.
+            Token AI siap pakai dengan API format OpenAI — beli, dapat key, langsung integrasi.
           </p>
           <p className="mt-5 inline-flex items-center gap-2 rounded-full border border-slate-900/10 px-3 py-1.5 text-xs dark:border-white/10">
             <span className={`h-2 w-2 rounded-full ${dot}`} />
@@ -51,9 +67,9 @@ export default function Footer({ siteName }: { siteName: string }) {
             <h3 className="font-display text-sm font-semibold uppercase tracking-[0.1em] text-crimson-500">{col.title}</h3>
             <ul className="mt-4 space-y-2.5 text-sm">
               {col.items.map((it) => (
-                <li key={it}>
-                  <a href="#" className="text-slate-600 transition hover:text-crimson-500 dark:text-slate-400">
-                    {it}
+                <li key={it.href}>
+                  <a href={it.href} className="text-slate-600 transition hover:text-crimson-500 dark:text-slate-400">
+                    {it.label}
                   </a>
                 </li>
               ))}

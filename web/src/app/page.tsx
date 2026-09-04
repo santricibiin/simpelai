@@ -1,8 +1,8 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
-import Playground from "@/components/Playground";
+import HowItWorks from "@/components/HowItWorks";
+import Integrasi from "@/components/Integrasi";
 import Features from "@/components/Features";
-import Pricing from "@/components/Pricing";
 import Footer from "@/components/Footer";
 import { getSettings } from "@/lib/session";
 
@@ -16,9 +16,9 @@ export default async function Page() {
       <Navbar siteName={site_name} />
       <main>
         <Hero />
-        <Playground />
+        <HowItWorks />
+        <Integrasi />
         <Features />
-        <Pricing />
       </main>
       <Footer siteName={site_name} />
     </>

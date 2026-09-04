@@ -1,52 +1,81 @@
 export type Feature = { icon: string; title: string; desc: string; metric: string };
 
 export const features: Feature[] = [
-  { icon: "Zap", title: "Streaming Cepat", desc: "Respons model lancar untuk chatbot, automation, dan proyek AI kamu.", metric: "Realtime" },
-  { icon: "ShieldCheck", title: "Stok Selalu Tersedia", desc: "Paket token dikirim otomatis setelah pembayaran QRIS terkonfirmasi.", metric: "Delivery Instan" },
-  { icon: "Boxes", title: "Model Pilihan", desc: "Grok dan model populer lainnya, satu API key untuk semuanya.", metric: "Grok & more" },
-  { icon: "Gauge", title: "Kuota Transparan", desc: "Pemakaian token tercatat per request — bisa dipantau kapan saja.", metric: "Live Tracking" },
+  { icon: "Boxes", title: "OpenAI-compatible", desc: "Endpoint /v1/chat/completions standar — SDK OpenAI, LangChain, Cline, apa pun langsung jalan.", metric: "drop-in" },
+  { icon: "Zap", title: "Streaming penuh", desc: "Dukung stream: true, token mengalir realtime tanpa nunggu respons selesai.", metric: "SSE stream" },
+  { icon: "Gauge", title: "Kuota transparan", desc: "Tiap request tercatat token in/out-nya. Cek sisa kuota kapan pun dari halaman Cek Kuota.", metric: "live tracking" },
+  { icon: "ShieldCheck", title: "API key aman", desc: "Key kamu di-hash, bisa dicabut sendiri, dan punya rate limit terpisah per key.", metric: "revocable" },
 ];
 
-export type Plan = {
-  name: string;
-  price: string;
-  unit: string;
-  tagline: string;
-  perks: string[];
-  cta: string;
-  featured?: boolean;
-};
+export type Step = { n: string; title: string; desc: string };
 
-export const plans: Plan[] = [
+export const steps: Step[] = [
   {
-    name: "Paket 5 Juta",
-    price: "Rp10.000",
-    unit: "",
-    tagline: "Cocok buat coba-coba dan proyek kecil.",
-    perks: ["5.000.000 token", "Semua model aktif", "Dashboard pemakaian", "Support via WhatsApp/Telegram"],
-    cta: "Pesan Paket",
+    n: "01",
+    title: "Pilih paket token",
+    desc: "Buka daftar harga, tentukan besaran token sesuai kebutuhan proyek kamu.",
   },
   {
-    name: "Paket 200 Juta",
-    price: "Rp150.000",
-    unit: "",
-    tagline: "Paling laris — buat penggunaan harian rutin.",
-    perks: ["200.000.000 token", "Semua model aktif", "Dashboard pemakaian", "Prioritas support"],
-    cta: "Pesan Paket",
-    featured: true,
+    n: "02",
+    title: "Bayar via QRIS",
+    desc: "Scan QRIS dari halaman order atau bot Telegram. Konfirmasi otomatis, tanpa nunggu admin.",
   },
   {
-    name: "Paket 10 Miliar",
-    price: "Rp5.000.000",
-    unit: "",
-    tagline: "Untuk tim dan produk dengan traffic besar.",
-    perks: ["10.000.000.000 token", "Semua model aktif", "Dashboard pemakaian", "Support prioritas tertinggi"],
-    cta: "Pesan Paket",
+    n: "03",
+    title: "Terima API key",
+    desc: "API key langsung dikirim setelah pembayaran masuk. Simpan — key hanya ditampilkan sekali.",
+  },
+  {
+    n: "04",
+    title: "Ganti base URL",
+    desc: "Di kode kamu, arahkan base URL ke gateway kami dan pakai API key itu sebagai Bearer token.",
+  },
+];
+
+export const snippets: { lang: string; label: string; code: string }[] = [
+  {
+    lang: "bash",
+    label: "cURL",
+    code: `curl https://buatprem.biz.id/v1/chat/completions \\
+  -H "Authorization: Bearer sk-nf-xxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "gcli/grok-4.6",
+    "messages": [{"role": "user", "content": "Halo"}]
+  }'`,
+  },
+  {
+    lang: "python",
+    label: "Python",
+    code: `from openai import OpenAI
+
+client = OpenAI(
+    api_key="sk-nf-xxxxx",
+    base_url="https://buatprem.biz.id/v1",
+)
+
+res = client.chat.completions.create(
+    model="gcli/grok-4.6",
+    messages=[{"role": "user", "content": "Halo"}],
+)
+print(res.choices[0].message.content)`,
+  },
+  {
+    lang: "javascript",
+    label: "Node.js",
+    code: `import OpenAI from "openai";
+
+const client = new OpenAI({
+  apiKey: "sk-nf-xxxxx",
+  baseURL: "https://buatprem.biz.id/v1",
+});
+
+const res = await client.chat.completions.create({
+  model: "gcli/grok-4.6",
+  messages: [{ role: "user", content: "Halo" }],
+});
+console.log(res.choices[0].message.content);`,
   },
 ];
 
 export const models = ["gcli/grok-4.6", "gcli/grok-4.6-xhigh"];
-
-export const extras = [
-  { name: "Netflix Premium 1 Bulan", desc: "Akun streaming legal, garansi full 1 bulan.", price: "Rp25.000" },
-];
