@@ -1,10 +1,10 @@
 export type Feature = { icon: string; title: string; desc: string; metric: string };
 
 export const features: Feature[] = [
-  { icon: "Boxes", title: "Smart routing", desc: "Request otomatis dirutekan ke provider dan model terbaik yang tersedia — failover tanpa kamu sentuh.", metric: "auto-route" },
-  { icon: "Zap", title: "Satu endpoint", desc: "Endpoint /v1/chat/completions format OpenAI. Semua model di belakang gateway, tanpa ganti SDK.", metric: "drop-in" },
-  { icon: "Gauge", title: "Kuota transparan", desc: "Tiap request tercatat token in/out-nya per model. Cek sisa kuota realtime kapan pun.", metric: "live tracking" },
-  { icon: "ShieldCheck", title: "API key aman", desc: "Key di-hash, bisa dicabut sendiri, rate limit terpisah per key — kontrol penuh di tanganmu.", metric: "revocable" },
+  { icon: "Boxes", title: "Semua model, satu kuota", desc: "Kuota dihitung dari total pemakaian lintas model, bukan per model. Bebas ganti model kapan saja.", metric: "satu kuota" },
+  { icon: "Zap", title: "Format OpenAI", desc: "Endpoint /v1/chat/completions standar. SDK OpenAI, LangChain, Cline, Cursor — langsung jalan.", metric: "drop-in" },
+  { icon: "Gauge", title: "Pembayaran instan", desc: "QRIS dari semua bank dan e-wallet. Verifikasi otomatis, API key terkirim begitu pembayaran masuk.", metric: "otomatis" },
+  { icon: "ShieldCheck", title: "Tanpa akun, tetap aman", desc: "Tidak perlu daftar. Key di-hash, bisa dicabut sendiri, rate limit terpisah per key.", metric: "no signup" },
 ];
 
 export type Step = { n: string; title: string; desc: string };
@@ -12,23 +12,23 @@ export type Step = { n: string; title: string; desc: string };
 export const steps: Step[] = [
   {
     n: "01",
-    title: "Pilih paket kuota",
-    desc: "Beli paket token lewat QRIS. Kuota itu yang dipakai semua request yang lewat gateway.",
+    title: "Pilih paket",
+    desc: "Tentukan kuota yang sesuai kebutuhan. Tidak perlu buat akun.",
   },
   {
     n: "02",
-    title: "Terima API key",
-    desc: "API key langsung dikirim setelah pembayaran masuk. Simpan — key hanya ditampilkan sekali.",
+    title: "Bayar lewat QRIS",
+    desc: "Scan dari semua bank dan e-wallet. Verifikasi otomatis, tanpa nunggu admin.",
   },
   {
     n: "03",
-    title: "Ganti base URL",
-    desc: "Arahkan base URL ke gateway kami, pakai API key sebagai Bearer token. Format tetap OpenAI.",
+    title: "Terima API key",
+    desc: "Key dan base URL langsung terkirim begitu pembayaran masuk. Simpan — hanya ditampilkan sekali.",
   },
   {
     n: "04",
-    title: "Request langsung dirutekan",
-    desc: "Sebut nama model di request, gateway merutekannya ke provider terbaik. Ganti model = ganti satu baris.",
+    title: "Ganti base URL",
+    desc: "Arahkan base URL ke gateway, pakai key sebagai Bearer token. Sebut nama modelnya di request — selesai.",
   },
 ];
 

@@ -20,11 +20,10 @@ export default function HowItWorks() {
             cara pakai
           </span>
           <h2 className="mt-5 font-display text-3xl font-semibold tracking-tighter sm:text-[2.75rem] sm:leading-[1.1]">
-            Dari bayar sampai <span className="text-gradient">request dirutekan</span>
+            Empat langkah, <span className="text-gradient">selesai</span>
           </h2>
           <p className="mt-4 text-slate-600 dark:text-slate-300">
-            Tanpa approval manual, tanpa nunggu lama. Dari bayar sampai request pertama lewat gateway
-            biasanya di bawah lima menit.
+            Dari bayar sampai request pertama biasanya di bawah lima menit.
           </p>
         </div>
 

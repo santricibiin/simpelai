@@ -6,8 +6,8 @@ import AiNodeVisual from "./AiNodeVisual";
 
 const stats = [
   { k: "1 endpoint", v: "semua model" },
-  { k: "OpenAI", v: "kompatibel" },
-  { k: "< 5 mnt", v: "sampai routing" },
+  { k: "QRIS", v: "semua e-wallet" },
+  { k: "< 5 mnt", v: "sampai jalan" },
 ];
 
 const trust = ["OpenAI SDK", "LangChain", "Cline", "Continue", "Cursor", "Roo Code"];
@@ -31,18 +31,17 @@ export default function Hero() {
         >
           <span className="pill border-crimson/25 bg-crimson/[.07] text-crimson-500">
             <Sparkles className="h-3.5 w-3.5" />
-            API Gateway untuk model AI
+            Token AI untuk semua model
           </span>
 
           <h1 className="mt-6 font-display text-[2.6rem] font-semibold leading-[1.06] tracking-tightest sm:text-6xl lg:text-[4.2rem]">
-            Satu gerbang.
-            <span className="text-gradient mt-1 block">Rutekan semua model AI.</span>
+            Satu gerbang,
+            <span className="text-gradient mt-1 block">semua model AI.</span>
           </h1>
 
           <p className="mt-6 max-w-xl text-base leading-relaxed text-slate-600 sm:text-lg dark:text-slate-300">
-            NeuroForge adalah API gateway yang merutekan request kamu ke model AI terbaik —
-            satu endpoint, satu API key, format OpenAI. Ganti base URL, dan semua SDK serta
-            tool favoritmu langsung terhubung ke routing engine kami.
+            Satu kuota token untuk semua model. Sebut nama modelnya di request, gateway kami yang
+            urus sisanya. Bayar lewat QRIS, API key langsung terkirim otomatis — tanpa nunggu admin.
           </p>
 
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
