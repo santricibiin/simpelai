@@ -22,22 +22,22 @@ export default async function PricelistPage() {
         <div className="pointer-events-none absolute inset-0 bg-dot-grid bg-[size:22px_22px] opacity-[0.45] [mask-image:radial-gradient(ellipse_at_top,black,transparent_62%)] dark:opacity-[0.3]" />
         <div className="aurora -top-24 left-1/2 h-64 w-[30rem] -translate-x-1/2 bg-crimson/18" />
 
-        <div className="container-x relative py-14 sm:py-20">
+        <div className="container-x relative py-10 sm:py-16 lg:py-20">
           <header className="max-w-2xl">
             <span className="pill text-crimson-500">
               <span className="h-1.5 w-1.5 rounded-full bg-crimson-500" />
               pricelist
             </span>
-            <h1 className="mt-5 font-display text-4xl font-semibold tracking-tightest sm:text-6xl">
+            <h1 className="mt-4 font-display text-3xl font-semibold tracking-tightest sm:mt-5 sm:text-5xl lg:text-6xl">
               Daftar <span className="text-gradient">harga</span>
             </h1>
-            <p className="mt-5 text-slate-600 dark:text-slate-300">
+            <p className="mt-4 text-sm text-slate-600 sm:mt-5 sm:text-base dark:text-slate-300">
               Harga berlaku per paket, sekali bayar. Data diambil langsung dari katalog produk yang
               aktif — kalau stok habis, paketnya otomatis hilang dari daftar.
             </p>
           </header>
 
-          <div className="mt-12">
+          <div className="mt-8 sm:mt-12">
             <PricelistTable products={products} />
           </div>
         </div>
